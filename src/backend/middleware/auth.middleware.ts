@@ -21,26 +21,28 @@ declare global {
 /**
  * JWT authentication middleware
  */
-export const authenticate = (req: Request, res: Response, next: NextFunction) => {
+export const authenticate = (req: Request, res: Response, next: NextFunction): void => {
   try {
     const authHeader = req.headers.authorization;
 
     if (!authHeader) {
-      return res.status(401).json({
+      res.status(401).json({
         error: {
           code: 'MISSING_TOKEN',
           message: 'Authorization header is required'
         }
       });
+      return;
     }
 
     if (!authHeader.startsWith('Bearer ')) {
-      return res.status(401).json({
+      res.status(401).json({
         error: {
           code: 'INVALID_TOKEN_FORMAT',
           message: 'Authorization header must be in format: Bearer <token>'
         }
       });
+      return;
     }
 
     const token = authHeader.substring(7);
@@ -53,25 +55,27 @@ export const authenticate = (req: Request, res: Response, next: NextFunction) =>
     next();
   } catch (error: any) {
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
+      res.status(401).json({
         error: {
           code: 'TOKEN_EXPIRED',
           message: 'Token has expired'
         }
       });
+      return;
     }
 
     if (error.name === 'JsonWebTokenError') {
-      return res.status(401).json({
+      res.status(401).json({
         error: {
           code: 'INVALID_TOKEN',
           message: 'Invalid token'
         }
       });
+      return;
     }
 
     logger.error('Authentication error', { error: error.message });
-    return res.status(500).json({
+    res.status(500).json({
       error: {
         code: 'AUTH_ERROR',
         message: 'Authentication failed'

@@ -7,10 +7,7 @@ import { logger } from '../utils/logger';
  * Form controller handling form-related API endpoints
  */
 export class FormController {
-  private langChainService: LangChainService;
-
   constructor() {
-    this.langChainService = new LangChainService();
   }
 
   /**
@@ -21,6 +18,21 @@ export class FormController {
     const startTime = Date.now();
 
     try {
+      const hasOpenAIKey = !!process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'demo_key_not_configured';
+      const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== 'demo_key_not_configured';
+      
+      if (!hasOpenAIKey && !hasAnthropicKey) {
+        logger.warn('Form generation attempted without API keys configured');
+        res.status(501).json({
+          error: {
+            code: 'LLM_NOT_CONFIGURED',
+            message: 'AI provider is not configured. Please set OPENAI_API_KEY or ANTHROPIC_API_KEY in the .env file to enable form generation.',
+            details: 'The demo showcases the implemented architecture, but form generation requires valid API credentials.'
+          }
+        });
+        return;
+      }
+
       const { description, options } = req.body;
       const userId = req.user?.userId;
 
@@ -30,7 +42,8 @@ export class FormController {
         options
       });
 
-      const schema = await this.langChainService.generateFormSchema(
+      const langChainService = new LangChainService();
+      const schema = await langChainService.generateFormSchema(
         description,
         options as GenerationOptions
       );

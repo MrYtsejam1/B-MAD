@@ -23,13 +23,15 @@ const limiter = rateLimit({
 });
 app.use('/api/', limiter);
 
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.use(express.static('dist/public'));
+
 app.use('/api/v1/forms', formRoutes);
 
-app.use((err: any, req: express.Request, res: express.Response, _next: express.NextFunction) => {
+app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err.stack);
   res.status(err.status || 500).json({
     error: {

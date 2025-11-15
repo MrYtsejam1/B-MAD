@@ -6,7 +6,7 @@ import { logger } from '../utils/logger';
  * Validation middleware factory
  */
 export const validate = (schema: Schema) => {
-  return (req: Request, res: Response, next: NextFunction) => {
+  return (req: Request, res: Response, next: NextFunction): void => {
     const { error, value } = schema.validate(req.body, {
       abortEarly: false,
       stripUnknown: true
@@ -20,13 +20,14 @@ export const validate = (schema: Schema) => {
 
       logger.warn('Validation failed', { errors, body: req.body });
 
-      return res.status(400).json({
+      res.status(400).json({
         error: {
           code: 'VALIDATION_ERROR',
           message: 'Invalid request data',
           details: errors
         }
       });
+      return;
     }
 
     req.body = value;
