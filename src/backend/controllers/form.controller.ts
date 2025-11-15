@@ -22,12 +22,92 @@ export class FormController {
       const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== 'demo_key_not_configured';
       
       if (!hasOpenAIKey && !hasAnthropicKey) {
-        logger.warn('Form generation attempted without API keys configured');
-        res.status(501).json({
-          error: {
-            code: 'LLM_NOT_CONFIGURED',
-            message: 'AI provider is not configured. Please set OPENAI_API_KEY or ANTHROPIC_API_KEY in the .env file to enable form generation.',
-            details: 'The demo showcases the implemented architecture, but form generation requires valid API credentials.'
+        logger.info('Using mock response for demo (no API keys configured)');
+        
+        const mockSchema = {
+          id: 'demo-form-' + Date.now(),
+          title: description.length > 50 ? description.substring(0, 50) + '...' : description,
+          description: 'This is a demo form generated without AI. Configure OpenAI or Anthropic API keys for real AI-powered generation.',
+          fields: [
+            {
+              id: 'username',
+              name: 'username',
+              type: 'text',
+              label: 'Username',
+              placeholder: 'Enter your username',
+              required: true,
+              validation: {
+                minLength: 3,
+                maxLength: 20,
+                pattern: '^[a-zA-Z0-9_]+$'
+              }
+            },
+            {
+              id: 'email',
+              name: 'email',
+              type: 'email',
+              label: 'Email Address',
+              placeholder: 'user@example.com',
+              required: true,
+              validation: {
+                pattern: '^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$'
+              }
+            },
+            {
+              id: 'password',
+              name: 'password',
+              type: 'password',
+              label: 'Password',
+              placeholder: 'Enter a secure password',
+              required: true,
+              validation: {
+                minLength: 8,
+                pattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).+$'
+              }
+            },
+            {
+              id: 'confirmPassword',
+              name: 'confirmPassword',
+              type: 'password',
+              label: 'Confirm Password',
+              placeholder: 'Re-enter your password',
+              required: true,
+              validation: {
+                minLength: 8
+              }
+            },
+            {
+              id: 'agreeToTerms',
+              name: 'agreeToTerms',
+              type: 'checkbox',
+              label: 'I agree to the terms and conditions',
+              required: true
+            }
+          ],
+          metadata: {
+            createdAt: new Date().toISOString(),
+            version: '1.0',
+            generatedBy: 'B-MAD Demo (Mock Response)',
+            processingTime: Math.floor(Math.random() * 500) + 500
+          }
+        };
+
+        const duration = Date.now() - startTime;
+        logger.info('Mock form schema generated', {
+          userId,
+          duration,
+          fieldCount: mockSchema.fields.length
+        });
+
+        res.status(200).json({
+          success: true,
+          schema: mockSchema,
+          metadata: {
+            processingTime: duration,
+            model: 'mock-demo',
+            tokensUsed: 0,
+            cached: false,
+            demo: true
           }
         });
         return;
