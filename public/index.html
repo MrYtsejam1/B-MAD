@@ -337,7 +337,7 @@
                         placeholder="Example: Create a contact form with name, email, phone number, and message fields. Make email and name required."
                     >Create a user registration form with username, email, password, confirm password, and agree to terms checkbox. Make all fields required.</textarea>
                 </div>
-                <button class="btn" onclick="generateForm()" id="generateBtn">
+                <button class="btn" id="generateBtn">
                     Generate Form
                 </button>
             </div>
@@ -411,6 +411,14 @@
     </div>
 
     <script>
+        // Add event listener after DOM loads
+        document.addEventListener('DOMContentLoaded', function() {
+            const generateBtn = document.getElementById('generateBtn');
+            if (generateBtn) {
+                generateBtn.addEventListener('click', generateForm);
+            }
+        });
+
         async function generateForm() {
             const prompt = document.getElementById('prompt').value;
             const resultDiv = document.getElementById('result');
