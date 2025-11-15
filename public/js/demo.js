@@ -35,8 +35,8 @@ async function generateForm() {
                 'Authorization': 'Bearer demo_token'
             },
             body: JSON.stringify({
-                prompt: prompt,
-                context: {
+                description: prompt,
+                options: {
                     purpose: 'demo',
                     audience: 'general users'
                 }
