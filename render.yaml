@@ -1,0 +1,31 @@
+services:
+  - type: web
+    name: bmad-demo
+    env: node
+    plan: free
+    buildCommand: |
+      npm ci
+      npm run build:backend
+      mkdir -p dist/public
+      cp -r public/* dist/public/ || true
+    startCommand: node dist/backend/index.js
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        generateValue: true
+      - key: CORS_ORIGIN
+        value: "*"
+      - key: LOG_LEVEL
+        value: info
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "900000"
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: "100"
+      - key: JWT_SECRET
+        generateValue: true
+      - key: OPENAI_API_KEY
+        value: demo_key_not_configured
+      - key: ANTHROPIC_API_KEY
+        value: demo_key_not_configured
