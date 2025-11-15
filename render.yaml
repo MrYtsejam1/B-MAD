@@ -4,7 +4,7 @@ services:
     env: node
     plan: free
     buildCommand: |
-      npm ci
+      npm ci --production=false
       npm run build:backend
       mkdir -p dist/public
       cp -r public/* dist/public/ || true
@@ -13,8 +13,8 @@ services:
     envVars:
       - key: NODE_ENV
         value: production
-      - key: PORT
-        generateValue: true
+      - key: NPM_CONFIG_PRODUCTION
+        value: "false"
       - key: CORS_ORIGIN
         value: "*"
       - key: LOG_LEVEL
