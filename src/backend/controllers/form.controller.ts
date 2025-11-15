@@ -20,11 +20,12 @@ export class FormController {
     try {
       const { description, options } = req.body;
       const userId = req.user?.userId;
+      const forceRealAI = req.headers['x-force-real-ai'] === 'true';
 
       const hasOpenAIKey = !!process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'demo_key_not_configured';
       const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== 'demo_key_not_configured';
       
-      if (!hasOpenAIKey && !hasAnthropicKey) {
+      if (!hasOpenAIKey && !hasAnthropicKey && !forceRealAI) {
         logger.info('Using mock response for demo (no API keys configured)');
         
         const mockSchema = {
@@ -111,6 +112,18 @@ export class FormController {
             tokensUsed: 0,
             cached: false,
             demo: true
+          }
+        });
+        return;
+      }
+
+      if (forceRealAI && !hasOpenAIKey && !hasAnthropicKey) {
+        logger.warn('Real AI generation requested but no API keys configured');
+        res.status(503).json({
+          error: {
+            code: 'AI_NOT_CONFIGURED',
+            message: 'Real AI generation requires OpenAI or Anthropic API keys to be configured.',
+            details: 'Please set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variables in Render dashboard.'
           }
         });
         return;
