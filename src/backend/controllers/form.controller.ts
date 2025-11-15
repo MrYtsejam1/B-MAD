@@ -18,6 +18,9 @@ export class FormController {
     const startTime = Date.now();
 
     try {
+      const { description, options } = req.body;
+      const userId = req.user?.userId;
+
       const hasOpenAIKey = !!process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'demo_key_not_configured';
       const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== 'demo_key_not_configured';
       
@@ -112,9 +115,6 @@ export class FormController {
         });
         return;
       }
-
-      const { description, options } = req.body;
-      const userId = req.user?.userId;
 
       logger.info('Form generation requested', {
         userId,
