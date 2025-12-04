@@ -5,6 +5,7 @@
 export type FieldType = 
   | 'text' 
   | 'email' 
+  | 'password'
   | 'textarea' 
   | 'select' 
   | 'checkbox' 

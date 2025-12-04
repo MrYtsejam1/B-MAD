@@ -12,7 +12,6 @@ export class LangChainService {
   private readonly model: string = 'deepseek-ai/DeepSeek-R1';
   private readonly maxRetries: number = 3;
   private readonly baseDelay: number = 1000;
-  private readonly timeout: number = 60000;
 
   constructor() {
     const apiKey = process.env.HUGGINGFACE_API_KEY;
