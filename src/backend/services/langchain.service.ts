@@ -99,12 +99,15 @@ export class LangChainService {
 
       const content = response.choices[0]?.message?.content || '';
       
-      logger.debug('Raw AI response', { content: content.substring(0, 500) });
+      logger.info('Raw AI response (first 1000 chars)', { content: content.substring(0, 1000) });
       
       let jsonStr = this.extractJSON(content);
       if (!jsonStr) {
+        logger.error('Failed to extract JSON from response', { content });
         throw new Error('No valid JSON found in response');
       }
+      
+      logger.info('Extracted JSON (first 500 chars)', { jsonStr: jsonStr.substring(0, 500) });
       
       const parsedSchema = JSON.parse(jsonStr);
       
@@ -287,8 +290,27 @@ Return ONLY the JSON object, no additional text or explanation.`;
     
     jsonStr = jsonStr.replace(/\.\.\./g, '');
     jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+    jsonStr = jsonStr.replace(/\\'/g, "'");
+    jsonStr = jsonStr.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
     
-    return jsonStr;
+    try {
+      JSON.parse(jsonStr);
+      return jsonStr;
+    } catch (e) {
+      logger.warn('JSON validation failed, attempting to fix common issues', { error: (e as Error).message });
+      
+      jsonStr = jsonStr.replace(/,\s*}/g, '}');
+      jsonStr = jsonStr.replace(/,\s*]/g, ']');
+      jsonStr = jsonStr.replace(/([{,]\s*)(\w+):/g, '$1"$2":');
+      
+      try {
+        JSON.parse(jsonStr);
+        return jsonStr;
+      } catch (e2) {
+        logger.error('JSON still invalid after fixes', { error: (e2 as Error).message, jsonStr: jsonStr.substring(0, 200) });
+        return null;
+      }
+    }
   }
 
   /**
