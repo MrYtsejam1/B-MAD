@@ -259,11 +259,12 @@ Return ONLY the JSON object, no additional text or explanation.`;
 
   /**
    * Extract JSON object from AI response text
+   * DeepSeek-R1 often returns <think> tags before the actual JSON
    */
   private extractJSON(content: string): string | null {
+    const jsonObjects: string[] = [];
     let braceCount = 0;
     let startIndex = -1;
-    let endIndex = -1;
     
     for (let i = 0; i < content.length; i++) {
       const char = content[i];
@@ -276,41 +277,53 @@ Return ONLY the JSON object, no additional text or explanation.`;
       } else if (char === '}') {
         braceCount--;
         if (braceCount === 0 && startIndex !== -1) {
-          endIndex = i;
-          break;
+          const jsonStr = content.substring(startIndex, i + 1);
+          jsonObjects.push(jsonStr);
+          startIndex = -1;
         }
       }
     }
     
-    if (startIndex === -1 || endIndex === -1) {
+    if (jsonObjects.length === 0) {
       return null;
     }
     
-    let jsonStr = content.substring(startIndex, endIndex + 1);
-    
-    jsonStr = jsonStr.replace(/\.\.\./g, '');
-    jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
-    jsonStr = jsonStr.replace(/\\'/g, "'");
-    jsonStr = jsonStr.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
-    
-    try {
-      JSON.parse(jsonStr);
-      return jsonStr;
-    } catch (e) {
-      logger.warn('JSON validation failed, attempting to fix common issues', { error: (e as Error).message });
+    for (let i = jsonObjects.length - 1; i >= 0; i--) {
+      let jsonStr = jsonObjects[i];
       
-      jsonStr = jsonStr.replace(/,\s*}/g, '}');
-      jsonStr = jsonStr.replace(/,\s*]/g, ']');
-      jsonStr = jsonStr.replace(/([{,]\s*)(\w+):/g, '$1"$2":');
+      jsonStr = jsonStr.replace(/\.\.\./g, '');
+      jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+      jsonStr = jsonStr.replace(/\\'/g, "'");
+      jsonStr = jsonStr.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
       
       try {
-        JSON.parse(jsonStr);
-        return jsonStr;
-      } catch (e2) {
-        logger.error('JSON still invalid after fixes', { error: (e2 as Error).message, jsonStr: jsonStr.substring(0, 200) });
-        return null;
+        const parsed = JSON.parse(jsonStr);
+        
+        if (parsed.title && parsed.fields && Array.isArray(parsed.fields)) {
+          return jsonStr;
+        }
+      } catch (e) {
+        jsonStr = jsonStr.replace(/,\s*}/g, '}');
+        jsonStr = jsonStr.replace(/,\s*]/g, ']');
+        jsonStr = jsonStr.replace(/([{,]\s*)(\w+):/g, '$1"$2":');
+        
+        try {
+          const parsed = JSON.parse(jsonStr);
+          
+          if (parsed.title && parsed.fields && Array.isArray(parsed.fields)) {
+            return jsonStr;
+          }
+        } catch (e2) {
+          continue;
+        }
       }
     }
+    
+    logger.error('No valid form schema JSON found', { 
+      jsonObjectsFound: jsonObjects.length,
+      samples: jsonObjects.map(j => j.substring(0, 100))
+    });
+    return null;
   }
 
   /**
