@@ -19,10 +19,8 @@ export class LangChainService {
       throw new Error('HUGGINGFACE_API_KEY environment variable is required');
     }
     
-    this.hf = new HfInference(apiKey, {
-      endpointUrl: 'https://router.huggingface.co'
-    });
-    logger.info('Hugging Face client initialized', { model: this.model, endpoint: 'router.huggingface.co' });
+    this.hf = new HfInference(apiKey);
+    logger.info('Hugging Face client initialized', { model: this.model });
   }
 
   /**
@@ -225,7 +223,7 @@ Return ONLY the JSON object, no additional text or explanation.`;
 
         const delay = this.baseDelay * Math.pow(2, attempt);
         
-        logger.warn('LangChain API call failed, retrying', {
+        logger.warn('HF API call failed, retrying', {
           attempt: attempt + 1,
           maxRetries: this.maxRetries,
           delay,
