@@ -101,15 +101,10 @@ export class LangChainService {
       
       logger.debug('Raw AI response', { content: content.substring(0, 500) });
       
-      let jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (!jsonMatch) {
+      let jsonStr = this.extractJSON(content);
+      if (!jsonStr) {
         throw new Error('No valid JSON found in response');
       }
-
-      let jsonStr = jsonMatch[0];
-      
-      jsonStr = jsonStr.replace(/\.\.\./g, '');
-      jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
       
       const parsedSchema = JSON.parse(jsonStr);
       
@@ -257,6 +252,43 @@ Return ONLY the JSON object, no additional text or explanation.`;
 
     const errorMessage = error.message?.toLowerCase() || '';
     return nonRetryableMessages.some(msg => errorMessage.includes(msg));
+  }
+
+  /**
+   * Extract JSON object from AI response text
+   */
+  private extractJSON(content: string): string | null {
+    let braceCount = 0;
+    let startIndex = -1;
+    let endIndex = -1;
+    
+    for (let i = 0; i < content.length; i++) {
+      const char = content[i];
+      
+      if (char === '{') {
+        if (braceCount === 0) {
+          startIndex = i;
+        }
+        braceCount++;
+      } else if (char === '}') {
+        braceCount--;
+        if (braceCount === 0 && startIndex !== -1) {
+          endIndex = i;
+          break;
+        }
+      }
+    }
+    
+    if (startIndex === -1 || endIndex === -1) {
+      return null;
+    }
+    
+    let jsonStr = content.substring(startIndex, endIndex + 1);
+    
+    jsonStr = jsonStr.replace(/\.\.\./g, '');
+    jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+    
+    return jsonStr;
   }
 
   /**
