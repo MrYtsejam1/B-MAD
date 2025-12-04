@@ -22,10 +22,9 @@ export class FormController {
       const userId = req.user?.userId;
       const forceRealAI = req.headers['x-force-real-ai'] === 'true';
 
-      const hasOpenAIKey = !!process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'demo_key_not_configured';
-      const hasAnthropicKey = !!process.env.ANTHROPIC_API_KEY && process.env.ANTHROPIC_API_KEY !== 'demo_key_not_configured';
+      const hasHuggingFaceKey = !!process.env.HUGGINGFACE_API_KEY && process.env.HUGGINGFACE_API_KEY !== 'demo_key_not_configured';
       
-      if (!hasOpenAIKey && !hasAnthropicKey && !forceRealAI) {
+      if (!hasHuggingFaceKey && !forceRealAI) {
         logger.info('Using mock response for demo (no API keys configured)');
         
         const mockSchema = {
@@ -117,13 +116,13 @@ export class FormController {
         return;
       }
 
-      if (forceRealAI && !hasOpenAIKey && !hasAnthropicKey) {
-        logger.warn('Real AI generation requested but no API keys configured');
+      if (forceRealAI && !hasHuggingFaceKey) {
+        logger.warn('Real AI generation requested but no Hugging Face API key configured');
         res.status(503).json({
           error: {
             code: 'AI_NOT_CONFIGURED',
-            message: 'Real AI generation requires OpenAI or Anthropic API keys to be configured.',
-            details: 'Please set OPENAI_API_KEY or ANTHROPIC_API_KEY environment variables in Render dashboard.'
+            message: 'Real AI generation requires Hugging Face API key to be configured.',
+            details: 'Please set HUGGINGFACE_API_KEY environment variable in Render dashboard. Get your free API key at https://huggingface.co/settings/tokens'
           }
         });
         return;

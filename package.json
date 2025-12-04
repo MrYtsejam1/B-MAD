@@ -27,9 +27,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@langchain/anthropic": "^0.0.5",
-    "@langchain/core": "^0.1.0",
-    "@langchain/openai": "^0.0.19",
+    "@huggingface/inference": "^2.8.1",
     "@types/ioredis": "^4.28.10",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
@@ -40,7 +38,6 @@
     "ioredis": "^5.8.2",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
-    "langchain": "^0.1.0",
     "pg": "^8.11.3",
     "redis": "^4.6.11",
     "winston": "^3.11.0",

@@ -1,69 +1,39 @@
-import { ChatOpenAI } from '@langchain/openai';
-import { ChatAnthropic } from '@langchain/anthropic';
-import { StructuredOutputParser } from 'langchain/output_parsers';
-import { PromptTemplate } from '@langchain/core/prompts';
+import { HfInference } from '@huggingface/inference';
 import { z } from 'zod';
 import { FormSchema, GenerationOptions } from '../models/form-schema.model';
 import { Sanitizer } from '../utils/sanitizer';
 import { logger } from '../utils/logger';
-import { langChainConfig } from '../config/langchain.config';
 
 /**
- * LangChain service for AI-powered form generation
+ * Hugging Face service for AI-powered form generation using DeepSeek-R1
  */
 export class LangChainService {
-  private llm!: ChatOpenAI | ChatAnthropic;
-  private parser!: StructuredOutputParser<any>;
-  private readonly maxRetries: number;
-  private readonly baseDelay: number;
-  private readonly timeout: number;
+  private hf: HfInference;
+  private readonly model: string = 'deepseek-ai/DeepSeek-R1';
+  private readonly maxRetries: number = 3;
+  private readonly baseDelay: number = 1000;
+  private readonly timeout: number = 60000;
 
   constructor() {
-    this.maxRetries = langChainConfig.maxRetries;
-    this.baseDelay = langChainConfig.baseDelay;
-    this.timeout = langChainConfig.timeout;
-    
-    this.initializeLLM();
-    this.initializeParser();
-  }
-
-  /**
-   * Initialize LLM provider based on configuration
-   */
-  private initializeLLM(): void {
-    const { provider, model, temperature, maxTokens } = langChainConfig;
-
-    if (provider === 'anthropic') {
-      this.llm = new ChatAnthropic({
-        modelName: model,
-        temperature,
-        maxTokens: maxTokens,
-        timeout: this.timeout,
-        anthropicApiKey: process.env.ANTHROPIC_API_KEY
-      } as any);
-    } else {
-      this.llm = new ChatOpenAI({
-        modelName: model,
-        temperature,
-        maxTokens,
-        timeout: this.timeout,
-        openAIApiKey: process.env.OPENAI_API_KEY
-      });
+    const apiKey = process.env.HUGGINGFACE_API_KEY;
+    if (!apiKey) {
+      throw new Error('HUGGINGFACE_API_KEY environment variable is required');
     }
-
-    logger.info('LangChain LLM initialized', { provider, model });
+    
+    this.hf = new HfInference(apiKey);
+    logger.info('Hugging Face client initialized', { model: this.model });
   }
 
   /**
-   * Initialize structured output parser with Zod schema
+   * Get Zod schema for form validation
    */
-  private initializeParser(): void {
-    const formSchemaZod = z.object({
+  private getFormSchema() {
+    return z.object({
       title: z.string(),
       description: z.string().optional(),
       fields: z.array(z.object({
         name: z.string(),
-        type: z.enum(['text', 'email', 'textarea', 'select', 'checkbox', 'radio', 'date', 'file']),
+        type: z.enum(['text', 'email', 'textarea', 'select', 'checkbox', 'radio', 'date', 'file', 'password']),
         label: z.string(),
         placeholder: z.string().optional(),
         helpText: z.string().optional(),
@@ -87,11 +57,9 @@ export class LangChainService {
           action: z.enum(['show', 'hide'])
         }).optional()
       })),
-      layout: z.enum(['vertical', 'horizontal', 'grid']),
-      theme: z.enum(['light', 'dark'])
+      layout: z.enum(['vertical', 'horizontal', 'grid']).optional(),
+      theme: z.enum(['light', 'dark']).optional()
     });
-
-    this.parser = StructuredOutputParser.fromZodSchema(formSchemaZod);
   }
 
   /**
@@ -108,28 +76,50 @@ export class LangChainService {
     const startTime = Date.now();
 
     try {
-      logger.info('Starting form generation', { description, options });
+      logger.info('Starting form generation with DeepSeek-R1', { description, options });
 
       if (!description || description.trim().length < 10) {
         throw new Error('Description must be at least 10 characters');
       }
 
-      const prompt = await this.buildPrompt(description, options);
+      const prompt = this.buildPrompt(description, options);
 
       const response = await this.retryWithBackoff(async () => {
-        return await this.llm.invoke(prompt);
+        return await this.hf.chatCompletion({
+          model: this.model,
+          messages: [
+            {
+              role: 'user',
+              content: prompt
+            }
+          ],
+          max_tokens: 2000,
+          temperature: 0.7
+        });
       });
 
-      const parsedSchema = await this.parser.parse(response.content as string);
+      const content = response.choices[0]?.message?.content || '';
+      
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('No valid JSON found in response');
+      }
 
-      const sanitizedSchema = Sanitizer.sanitizeObject(parsedSchema);
+      const parsedSchema = JSON.parse(jsonMatch[0]);
+      
+      const formSchemaValidator = this.getFormSchema();
+      const validatedSchema = formSchemaValidator.parse(parsedSchema);
+
+      const sanitizedSchema = Sanitizer.sanitizeObject(validatedSchema);
 
       const schema: FormSchema = {
         ...sanitizedSchema,
         id: this.generateId(),
+        layout: sanitizedSchema.layout || 'vertical',
+        theme: sanitizedSchema.theme || 'light',
         metadata: {
           generatedAt: new Date().toISOString(),
-          model: langChainConfig.model,
+          model: this.model,
           cached: false,
           version: '1.0'
         }
@@ -157,20 +147,17 @@ export class LangChainService {
   }
 
   /**
-   * Build prompt template for LLM
+   * Build prompt for Hugging Face model
    */
-  private async buildPrompt(
+  private buildPrompt(
     description: string,
     options?: GenerationOptions
-  ): Promise<string> {
-    const formatInstructions = this.parser.getFormatInstructions();
+  ): string {
+    return `You are an expert form designer. Generate a form schema in JSON format based on the user's description.
 
-    const template = PromptTemplate.fromTemplate(`
-You are an expert form designer. Generate a form schema based on the user's description.
+User Description: ${description}
 
-User Description: {description}
-
-Options: {options}
+Options: ${JSON.stringify(options || {})}
 
 Requirements:
 1. Create appropriate field types for the described form
@@ -181,19 +168,33 @@ Requirements:
 6. Use conditional logic if fields depend on each other
 7. Ensure accessibility (clear labels, help text)
 8. For select fields, provide reasonable options
-9. Use appropriate field types (email for emails, date for dates, etc.)
+9. Use appropriate field types (email for emails, date for dates, password for passwords, etc.)
 10. Keep field names lowercase with underscores (snake_case)
 
-{format_instructions}
+Generate a complete, valid JSON form schema with this structure:
+{
+  "title": "Form Title",
+  "description": "Optional description",
+  "fields": [
+    {
+      "name": "field_name",
+      "type": "text|email|password|textarea|select|checkbox|radio|date|file",
+      "label": "Field Label",
+      "placeholder": "Optional placeholder",
+      "required": true|false,
+      "validation": {
+        "minLength": 3,
+        "maxLength": 50,
+        "pattern": "regex pattern"
+      },
+      "options": [{"value": "val", "label": "Label"}]
+    }
+  ],
+  "layout": "vertical|horizontal|grid",
+  "theme": "light|dark"
+}
 
-Generate a complete, valid form schema:
-    `);
-
-    return await template.format({
-      description,
-      options: JSON.stringify(options || {}),
-      format_instructions: formatInstructions
-    });
+Return ONLY the JSON object, no additional text or explanation.`;
   }
 
   /**
