@@ -99,12 +99,19 @@ export class LangChainService {
 
       const content = response.choices[0]?.message?.content || '';
       
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      logger.debug('Raw AI response', { content: content.substring(0, 500) });
+      
+      let jsonMatch = content.match(/\{[\s\S]*\}/);
       if (!jsonMatch) {
         throw new Error('No valid JSON found in response');
       }
 
-      const parsedSchema = JSON.parse(jsonMatch[0]);
+      let jsonStr = jsonMatch[0];
+      
+      jsonStr = jsonStr.replace(/\.\.\./g, '');
+      jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
+      
+      const parsedSchema = JSON.parse(jsonStr);
       
       const formSchemaValidator = this.getFormSchema();
       const validatedSchema = formSchemaValidator.parse(parsedSchema);
