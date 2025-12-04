@@ -32,7 +32,7 @@ export interface FieldOption {
 export interface ConditionalLogic {
   field: string;
   operator: 'equals' | 'notEquals' | 'contains' | 'greaterThan' | 'lessThan';
-  value: any;
+  value?: any;
   action: 'show' | 'hide';
 }
 

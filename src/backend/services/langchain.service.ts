@@ -19,8 +19,10 @@ export class LangChainService {
       throw new Error('HUGGINGFACE_API_KEY environment variable is required');
     }
     
-    this.hf = new HfInference(apiKey);
-    logger.info('Hugging Face client initialized', { model: this.model });
+    this.hf = new HfInference(apiKey, {
+      endpointUrl: 'https://router.huggingface.co'
+    });
+    logger.info('Hugging Face client initialized', { model: this.model, endpoint: 'router.huggingface.co' });
   }
 
   /**
