@@ -1,9 +1,8 @@
 import { Router } from 'express';
-import { ComponentController } from '../controllers/component.controller';
+import { componentController } from '../controllers/component.controller';
 
 const router = Router();
-const controller = new ComponentController();
 
-router.get('/components/:hash.js', controller.getComponent.bind(controller));
+router.get('/components/:hash.js', componentController.getComponent.bind(componentController));
 
 export default router;
