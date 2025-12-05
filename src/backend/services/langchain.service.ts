@@ -1,4 +1,4 @@
-import { GoogleGenerativeAI } from '@google/generative-ai';
+import { HfInference } from '@huggingface/inference';
 import { z } from 'zod';
 import { FormSchema, GenerationOptions } from '../models/form-schema.model';
 import { Sanitizer } from '../utils/sanitizer';
@@ -6,24 +6,24 @@ import { logger } from '../utils/logger';
 import { EmulatedAIService } from './emulated-ai.service';
 
 /**
- * Google Gemini service for AI-powered form generation
+ * Hugging Face service for AI-powered form generation
  */
 export class LangChainService {
-  private genAI: GoogleGenerativeAI;
-  private readonly models: string[] = ['gemini-3-pro-preview', 'gemini-1.5-pro', 'gemini-1.5-flash'];
+  private hf: HfInference | null = null;
+  private readonly model: string = 'gpt-oss-120b';
   private readonly maxRetries: number = 3;
   private readonly baseDelay: number = 1000;
   private emulatedAI: EmulatedAIService;
 
   constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.HUGGINGFACE_API_KEY;
     this.emulatedAI = new EmulatedAIService();
     
     if (apiKey && apiKey !== 'demo_key_not_configured') {
-      this.genAI = new GoogleGenerativeAI(apiKey);
-      logger.info('Google Gemini client initialized', { models: this.models });
+      this.hf = new HfInference(apiKey);
+      logger.info('Hugging Face client initialized', { model: this.model });
     } else {
-      logger.info('No Gemini API key configured, will use emulated AI');
+      logger.info('No Hugging Face API key configured, will use emulated AI');
     }
   }
 
@@ -83,44 +83,40 @@ export class LangChainService {
         throw new Error('Description must be at least 10 characters');
       }
 
-      if (!this.genAI) {
+      if (!this.hf) {
         logger.info('Using emulated AI (no API key configured)');
         return this.emulatedAI.generateFormSchema(description);
       }
 
-      logger.info('Starting form generation with Google Gemini', { description, options });
+      logger.info('Starting form generation with Hugging Face', { description, options, model: this.model });
 
       const prompt = this.buildPrompt(description, options);
 
-      let lastError: Error | null = null;
-      for (const modelName of this.models) {
-        try {
-          logger.info('Trying Gemini model', { model: modelName });
-          
-          const response = await this.retryWithBackoff(async () => {
-            const model = this.genAI.getGenerativeModel({ model: modelName });
-            const result = await model.generateContent(prompt);
-            return result.response;
+      try {
+        const response = await this.retryWithBackoff(async () => {
+          return await this.hf!.chatCompletion({
+            model: this.model,
+            messages: [
+              {
+                role: 'user',
+                content: prompt
+              }
+            ],
+            max_tokens: 2000,
+            temperature: 0.7
           });
+        });
 
-          const content = response.text() || '';
-          
-          return await this.processAIResponse(content, modelName, startTime);
-          
-        } catch (error: any) {
-          lastError = error;
-          logger.warn('Gemini model failed, trying next', { 
-            model: modelName, 
-            error: error.message 
-          });
-          continue;
-        }
+        const content = response.choices[0]?.message?.content || '';
+        return await this.processAIResponse(content, this.model, startTime);
+        
+      } catch (error: any) {
+        logger.warn('Hugging Face model failed, falling back to emulated AI', { 
+          model: this.model, 
+          error: error.message 
+        });
+        return this.emulatedAI.generateFormSchema(description);
       }
-
-      logger.warn('All Gemini models failed, falling back to emulated AI', { 
-        error: lastError?.message 
-      });
-      return this.emulatedAI.generateFormSchema(description);
 
     } catch (error: any) {
       const duration = Date.now() - startTime;
@@ -260,7 +256,7 @@ Return ONLY the JSON object, no additional text or explanation.`;
 
         const delay = this.baseDelay * Math.pow(2, attempt);
         
-        logger.warn('Gemini API call failed, retrying', {
+        logger.warn('Hugging Face API call failed, retrying', {
           attempt: attempt + 1,
           maxRetries: this.maxRetries,
           delay,

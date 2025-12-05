@@ -69,8 +69,8 @@ async function generateForm(useRealAI = false) {
         const errorMessage = useRealAI 
             ? `<strong>Error:</strong> ${error.message}
                <br><br>
-               <strong>Note:</strong> To use real AI generation with Google Gemini, configure Gemini API key in Render environment variables:
-               <br>• GEMINI_API_KEY (get free key at <a href="https://aistudio.google.com/app/apikey" target="_blank">aistudio.google.com/app/apikey</a>)
+               <strong>Note:</strong> To use real AI generation with Hugging Face, configure Hugging Face API key in Render environment variables:
+               <br>• HUGGINGFACE_API_KEY (get free key at <a href="https://huggingface.co/settings/tokens" target="_blank">huggingface.co/settings/tokens</a>)
                <br><br>
                Use the "Demo Mode" button to see the mock response without API keys.`
             : `<strong>Error:</strong> ${error.message}`;

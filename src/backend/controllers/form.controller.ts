@@ -22,15 +22,15 @@ export class FormController {
       const userId = req.user?.userId;
       const forceRealAI = req.headers['x-force-real-ai'] === 'true';
 
-      const hasGeminiKey = !!process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== 'demo_key_not_configured';
+      const hasHuggingFaceKey = !!process.env.HUGGINGFACE_API_KEY && process.env.HUGGINGFACE_API_KEY !== 'demo_key_not_configured';
       
-      if (!hasGeminiKey && !forceRealAI) {
+      if (!hasHuggingFaceKey && !forceRealAI) {
         logger.info('Using mock response for demo (no API keys configured)');
         
         const mockSchema = {
           id: 'demo-form-' + Date.now(),
           title: description.length > 50 ? description.substring(0, 50) + '...' : description,
-          description: 'This is a demo form generated without AI. Configure Google Gemini API key for real AI-powered generation.',
+          description: 'This is a demo form generated without AI. Configure Hugging Face API key for real AI-powered generation.',
           fields: [
             {
               id: 'username',
@@ -116,13 +116,13 @@ export class FormController {
         return;
       }
 
-      if (forceRealAI && !hasGeminiKey) {
-        logger.warn('Real AI generation requested but no Gemini API key configured');
+      if (forceRealAI && !hasHuggingFaceKey) {
+        logger.warn('Real AI generation requested but no Hugging Face API key configured');
         res.status(503).json({
           error: {
             code: 'AI_NOT_CONFIGURED',
-            message: 'Real AI generation requires Google Gemini API key to be configured.',
-            details: 'Please set GEMINI_API_KEY environment variable in Render dashboard. Get your free API key at https://aistudio.google.com/app/apikey'
+            message: 'Real AI generation requires Hugging Face API key to be configured.',
+            details: 'Please set HUGGINGFACE_API_KEY environment variable in Render dashboard. Get your free API key at https://huggingface.co/settings/tokens'
           }
         });
         return;

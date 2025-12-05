@@ -25,7 +25,5 @@ services:
         value: "100"
       - key: JWT_SECRET
         generateValue: true
-      - key: OPENAI_API_KEY
-        value: demo_key_not_configured
-      - key: ANTHROPIC_API_KEY
+      - key: HUGGINGFACE_API_KEY
         value: demo_key_not_configured
