@@ -15,7 +15,7 @@ export class OutputModeService {
   private compiler: ComponentCompilerService;
   
   private readonly modelModeMap: Record<string, OutputMode> = {
-    'ZHUI/GLM-4-32B-0414:featherless-ai': OutputMode.JSON_SCHEMA,
+    'zai-org/GLM-4-32B-0414:featherless-ai': OutputMode.JSON_SCHEMA,
     'Qwen/Qwen2.5-Coder-7B-Instruct:featherless-ai': OutputMode.WEB_COMPONENT,
     'agentica-org/DeepCoder-14B-Preview:featherless-ai': OutputMode.WEB_COMPONENT,
   };
