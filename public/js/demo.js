@@ -16,10 +16,11 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 async function generateForm(useRealAI = false) {
-    console.log('Generate button clicked, useRealAI:', useRealAI);
+    console.log('📝 SIMPLE MODE: Generate button clicked, useRealAI:', useRealAI);
     const prompt = document.getElementById('prompt').value;
     const modelSelect = document.getElementById('modelSelect');
     const selectedModel = modelSelect ? modelSelect.value : null;
+    console.log('Selected model:', selectedModel);
     const resultDiv = document.getElementById('result');
     const btn = useRealAI ? document.getElementById('generateRealBtn') : document.getElementById('generateBtn');
 
