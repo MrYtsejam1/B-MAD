@@ -44,12 +44,14 @@ export class SSEController {
         }
       );
 
-      if (result.mode === 'web_component' && result.component) {
-        const { hash, javascript } = result.component;
-        componentController.storeComponent(hash, javascript);
-        
-        result.component.javascriptUrl = `/api/v1/components/${hash}.js`;
-        delete result.component.javascript; // Remove inline JS from response
+      if ((result as any).mode === 'web_component' && (result as any).component) {
+        const component = (result as any).component;
+        if (component.hash && component.javascript) {
+          componentController.storeComponent(component.hash, component.javascript);
+          
+          component.javascriptUrl = `/api/v1/components/${component.hash}.js`;
+          delete component.javascript;
+        }
       }
 
       this.sendEvent(res, 'result', result);
