@@ -262,7 +262,12 @@ Requirements:
 8. For select fields, provide reasonable options
 9. IMPORTANT: Use ONLY these exact field types: text, email, password, textarea, select, checkbox, radio, date, file. Do NOT use any other types like number, time, tel, url, range, etc. For time-of-day fields, use "text" type with a placeholder like "HH:MM". For phone numbers, use "text" type.
 10. Keep field names lowercase with underscores (snake_case)
-11. VERY IMPORTANT: When the user's description contains a concrete value for a field (like names, dates, cities, hotel names, flight numbers, email addresses, phone numbers, amounts, etc.), you MUST set that value in the field's "defaultValue" property so the form is pre-filled with the user's data. Extract ALL available data from the description and populate the corresponding fields. If there is no clear value for a field, omit "defaultValue" for that field.
+11. VERY IMPORTANT - ROLE DISTINCTION: Distinguish clearly between the person filling out the form ("the user") and other people they mention:
+    a. The "user" is the person speaking in the description (using "I", "me", "my"). Assume the form is primarily for the user unless they explicitly say they are booking on behalf of someone else.
+    b. Only pre-fill personal fields for the user (like first_name, last_name, email, phone) when it is CLEAR that the value refers to the user themselves. If a name clearly belongs to someone else (e.g., "my coworker Yosi Yehuda", "my friend John", "my manager Dana"), do NOT use that as the user's own name.
+    c. When other people are mentioned (companions, coworkers, managers, approvers), create SEPARATE fields with clear prefixes, for example: companion_name, companion_email, manager_name, manager_email, approver_name. Pre-fill those fields with the mentioned values.
+    d. If there is ANY ambiguity about whether a value belongs to the user or someone else, do NOT pre-fill the user's personal fields. Leave them empty and let the user fill them in.
+12. VERY IMPORTANT - DATA EXTRACTION: When the user's description contains concrete values for non-personal fields (like dates, cities, hotel names, flight numbers, times, amounts), you MUST set those values in the field's "defaultValue" property. Trip details can always be pre-filled. Apply the role logic from requirement 11 for personal information.
 
 Generate a complete, valid JSON form schema with this structure:
 {
@@ -270,23 +275,41 @@ Generate a complete, valid JSON form schema with this structure:
   "description": "Optional description",
   "fields": [
     {
-      "name": "field_name",
-      "type": "text|email|password|textarea|select|checkbox|radio|date|file",
-      "label": "Field Label",
-      "placeholder": "Optional placeholder",
-      "required": true|false,
-      "defaultValue": "Pre-filled value extracted from user description (if available)",
-      "validation": {
-        "minLength": 3,
-        "maxLength": 50,
-        "pattern": "regex pattern"
-      },
-      "options": [{"value": "val", "label": "Label"}]
+      "name": "traveler_first_name",
+      "type": "text",
+      "label": "Your First Name",
+      "required": true
+    },
+    {
+      "name": "companion_name",
+      "type": "text",
+      "label": "Companion Name",
+      "defaultValue": "Name of companion if mentioned",
+      "required": false
+    },
+    {
+      "name": "departure_city",
+      "type": "text",
+      "label": "Departure City",
+      "defaultValue": "Pre-filled from description",
+      "required": true
+    },
+    {
+      "name": "manager_name",
+      "type": "text",
+      "label": "Manager Name",
+      "required": false
     }
   ],
   "layout": "vertical|horizontal|grid",
   "theme": "light|dark"
 }
+
+Field naming conventions:
+- User's own fields: first_name, last_name, email, phone (leave defaultValue empty unless user explicitly states their own name)
+- Companion fields: companion_name, companion_email, companion_phone
+- Manager fields: manager_name, manager_email
+- Trip details: departure_city, destination_city, departure_date, return_date, flight_number, hotel_name (always pre-fill these)
 
 Return ONLY the JSON object, no additional text or explanation. Do not include your reasoning or thinking process in the response.`;
   }
