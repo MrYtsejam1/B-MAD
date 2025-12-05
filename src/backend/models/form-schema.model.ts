@@ -71,4 +71,5 @@ export interface GenerationOptions {
   theme?: 'light' | 'dark';
   layout?: 'vertical' | 'horizontal' | 'grid';
   includeSubmitButton?: boolean;
+  model?: string;
 }
