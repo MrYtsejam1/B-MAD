@@ -1,10 +1,12 @@
 import { HfInference } from '@huggingface/inference';
 import { AgentRequest, AgentResponse, IntentType, ComplexityLevel, AgentEvent } from '../models/agent.model';
 import { AgentToolsService } from './agent-tools.service';
+import { OutputModeService, OutputMode } from './output-mode.service';
 
 export class LangChainAgentService {
   private hf: HfInference;
   private tools: AgentToolsService;
+  private outputMode: OutputModeService;
   private readonly models = {
     intent: 'agentica-org/DeepCoder-14B-Preview:featherless-ai',
     generation: 'Qwen/Qwen2.5-Coder-7B-Instruct:featherless-ai',
@@ -15,6 +17,7 @@ export class LangChainAgentService {
     const hfToken = process.env.HF_TOKEN || 'demo_key_not_configured';
     this.hf = new HfInference(hfToken);
     this.tools = new AgentToolsService();
+    this.outputMode = new OutputModeService();
   }
 
   async processRequest(request: AgentRequest, eventCallback?: (event: AgentEvent) => void): Promise<AgentResponse> {
@@ -42,7 +45,8 @@ export class LangChainAgentService {
 
       this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
       
-      const result = await this.generateOutput(request.userInput, intent, complexity);
+      const model = request.context?.model;
+      const result = await this.generateOutput(request.userInput, intent, complexity, model);
 
       this.emitEvent(eventCallback, 'complete', result);
 
@@ -197,31 +201,39 @@ Respond with only the category name, nothing else.`;
     return mentioned;
   }
 
-  private async generateOutput(_userInput: string, intent: IntentType, _complexity: ComplexityLevel): Promise<any> {
+  private async generateOutput(_userInput: string, intent: IntentType, _complexity: ComplexityLevel, model?: string): Promise<any> {
     
     const mcpServerId = intent === IntentType.INVOICE_SUBMISSION ? 'invoice' : 
                         intent === IntentType.TRAVEL_BOOKING ? 'travel' : null;
 
+    let formData: any;
+
     if (mcpServerId) {
       const capabilities = await this.tools.mcpDescribe(mcpServerId);
       
-      return {
-        formSchema: {
-          title: capabilities.name,
-          description: capabilities.description,
-          fields: capabilities.requirements?.requiredFields || [],
-        },
-        reasoning: `Generated form for ${intent} based on MCP server configuration`,
+      formData = {
+        title: capabilities.name,
+        description: capabilities.description,
+        fields: capabilities.requirements?.requiredFields || [],
       };
-    }
-
-    return {
-      formSchema: {
+    } else {
+      formData = {
         title: 'General Form',
         description: 'Generated from user input',
         fields: ['field1', 'field2'],
-      },
-      reasoning: 'Generated general form',
+      };
+    }
+
+    const selectedModel = model || this.models.fallback;
+    const mode = this.outputMode.getOutputMode(selectedModel);
+
+    const output = await this.outputMode.generateOutput({ mode, model: selectedModel }, formData);
+
+    return {
+      ...output,
+      reasoning: mcpServerId 
+        ? `Generated form for ${intent} based on MCP server configuration`
+        : 'Generated general form',
     };
   }
 

@@ -61,12 +61,12 @@ export class OutputModeService {
   private async generateWebComponent(formData: any): Promise<any> {
     const componentSource: ComponentSource = {
       typescript: this.generateComponentTypeScript(formData),
-      template: this.generateComponentTemplate(formData),
-      styles: this.generateComponentStyles(formData),
+      template: '',
+      styles: '',
       metadata: {
-        selector: 'app-generated-form',
-        inputs: ['data'],
-        outputs: ['submit'],
+        selector: 'generated-form-component',
+        inputs: [],
+        outputs: ['formSubmit'],
       },
     };
 
@@ -74,34 +74,130 @@ export class OutputModeService {
 
     return {
       mode: OutputMode.WEB_COMPONENT,
-      component: compiled,
+      component: {
+        javascript: compiled.javascript,
+        metadata: compiled.metadata,
+        hash: compiled.hash,
+        selector: 'generated-form-component',
+      },
     };
   }
 
-  private generateComponentTypeScript(_formData: any): string {
-    const fields = _formData.fields || [];
-    const fieldProperties = fields.map((f: string) => `  ${f}: string = '';`).join('\n');
+  private generateComponentTypeScript(formData: any): string {
+    const fields = formData.fields || [];
+    const title = formData.title || 'Generated Form';
+    const description = formData.description || '';
 
     return `
-import { Component, Input, Output, EventEmitter } from '@angular/core';
-
-@Component({
-  selector: 'app-generated-form',
-  templateUrl: './generated-form.component.html',
-  styleUrls: ['./generated-form.component.css']
-})
-export class GeneratedFormComponent {
-  @Input() data: any;
-  @Output() submit = new EventEmitter<any>();
-
-${fieldProperties}
-
-  onSubmit(): void {
-    const formData = {
-${fields.map((f: string) => `      ${f}: this.${f},`).join('\n')}
-    };
-    this.submit.emit(formData);
+class GeneratedFormComponent extends HTMLElement {
+  constructor() {
+    super();
+    this.attachShadow({ mode: 'open' });
+    this.formData = {};
   }
+
+  connectedCallback() {
+    this.render();
+    this.attachEventListeners();
+  }
+
+  render() {
+    const template = \\\`
+      <style>
+        .generated-form {
+          max-width: 600px;
+          margin: 0 auto;
+          padding: 20px;
+          font-family: Arial, sans-serif;
+        }
+        .generated-form h2 {
+          color: #333;
+          margin-bottom: 10px;
+        }
+        .generated-form p {
+          color: #666;
+          margin-bottom: 20px;
+        }
+        .form-field {
+          margin-bottom: 15px;
+        }
+        .form-field label {
+          display: block;
+          margin-bottom: 5px;
+          font-weight: bold;
+          color: #555;
+        }
+        .form-field input {
+          width: 100%;
+          padding: 10px;
+          border: 1px solid #ddd;
+          border-radius: 4px;
+          font-size: 14px;
+          box-sizing: border-box;
+        }
+        .form-field input:focus {
+          outline: none;
+          border-color: #4CAF50;
+        }
+        .submit-btn {
+          background-color: #4CAF50;
+          color: white;
+          padding: 12px 24px;
+          border: none;
+          border-radius: 4px;
+          cursor: pointer;
+          font-size: 16px;
+          width: 100%;
+        }
+        .submit-btn:hover {
+          background-color: #45a049;
+        }
+      </style>
+      <div class="generated-form">
+        <h2>\\\${title}</h2>
+        \\\${description ? \\\`<p>\\\${description}</p>\\\` : ''}
+        <form id="dynamicForm">
+          \\\${fields.map((f) => \\\`
+            <div class="form-field">
+              <label for="\\\${f}">\\\${this.formatFieldName(f)}</label>
+              <input type="text" id="\\\${f}" name="\\\${f}" placeholder="Enter \\\${this.formatFieldName(f).toLowerCase()}">
+            </div>
+          \\\`).join('')}
+          <button type="submit" class="submit-btn">Submit</button>
+        </form>
+      </div>
+    \\\`;
+    this.shadowRoot.innerHTML = template;
+  }
+
+  formatFieldName(field) {
+    return field
+      .replace(/([A-Z])/g, ' $1')
+      .replace(/^./, str => str.toUpperCase())
+      .trim();
+  }
+
+  attachEventListeners() {
+    const form = this.shadowRoot.getElementById('dynamicForm');
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const formData = new FormData(form);
+      const data = {};
+      formData.forEach((value, key) => {
+        data[key] = value;
+      });
+      this.dispatchEvent(new CustomEvent('formSubmit', { 
+        detail: data,
+        bubbles: true,
+        composed: true
+      }));
+      console.log('Form submitted:', data);
+    });
+  }
+}
+
+if (!customElements.get('generated-form-component')) {
+  customElements.define('generated-form-component', GeneratedFormComponent);
 }
 `;
   }

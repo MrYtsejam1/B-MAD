@@ -156,13 +156,21 @@ class AgentUI {
 
             case 'complete':
                 this.addLogEntry('agent', '✅ Complete!');
-                if (data.formSchema) {
+                if (data.mode === 'web_component' && data.component) {
+                    this.displayWebComponent(data.component);
+                } else if (data.schema) {
+                    this.displayForm(data.schema);
+                } else if (data.formSchema) {
                     this.displayForm(data.formSchema);
                 }
                 break;
 
             case 'result':
-                if (data.formSchema) {
+                if (data.mode === 'web_component' && data.component) {
+                    this.displayWebComponent(data.component);
+                } else if (data.schema) {
+                    this.displayForm(data.schema);
+                } else if (data.formSchema) {
                     this.displayForm(data.formSchema);
                 } else {
                     this.addLogEntry('agent', '✅ Result: ' + JSON.stringify(data, null, 2));
@@ -275,6 +283,46 @@ class AgentUI {
                     <h3>${this.escapeHtml(formSchema.title || 'Generated Form')}</h3>
                     <p>${this.escapeHtml(formSchema.description || '')}</p>
                     <pre>${JSON.stringify(formSchema, null, 2)}</pre>
+                </div>
+            `;
+        }
+    }
+
+    displayWebComponent(componentData) {
+        const agentResult = document.getElementById('agentResult');
+        
+        this.addLogEntry('system', '🎨 Loading web component...');
+
+        try {
+            agentResult.innerHTML = `
+                <div class="success">✅ Web component generated successfully!</div>
+                <div id="componentContainer" style="margin-top: 20px;"></div>
+            `;
+
+            const script = document.createElement('script');
+            script.textContent = componentData.javascript;
+            document.body.appendChild(script);
+
+            const container = document.getElementById('componentContainer');
+            const component = document.createElement(componentData.selector || 'generated-form-component');
+            
+            component.addEventListener('formSubmit', (e) => {
+                console.log('Form submitted from web component:', e.detail);
+                this.addLogEntry('system', '📝 Form submitted: ' + JSON.stringify(e.detail, null, 2));
+            });
+
+            container.appendChild(component);
+            
+            this.addLogEntry('system', '✅ Web component loaded and mounted');
+        } catch (error) {
+            console.error('Failed to load web component:', error);
+            this.addLogEntry('error', 'Failed to load web component: ' + error.message);
+            
+            agentResult.innerHTML = `
+                <div class="error">❌ Failed to load web component</div>
+                <div class="demo-section" style="margin-top: 20px;">
+                    <h3>Component Code</h3>
+                    <div class="code-block">${this.escapeHtml(componentData.javascript)}</div>
                 </div>
             `;
         }
