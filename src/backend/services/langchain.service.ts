@@ -9,7 +9,7 @@ import { logger } from '../utils/logger';
  */
 export class LangChainService {
   private genAI: GoogleGenerativeAI;
-  private readonly model: string = 'gemini-1.5-flash';
+  private readonly model: string = 'gemini-3-pro-preview';
   private readonly maxRetries: number = 3;
   private readonly baseDelay: number = 1000;
 
