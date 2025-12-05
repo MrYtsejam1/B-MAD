@@ -1,4 +1,3 @@
-import { TravelDocument } from '../../models/travel.model';
 
 export interface PassportInfo {
   passportNumber: string;

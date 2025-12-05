@@ -5,7 +5,6 @@ import {
   TravelBookingResponse,
   TravelStatus,
   TravelStep,
-  Traveler,
 } from '../../models/travel.model';
 
 const store = TravelStore.getInstance();
