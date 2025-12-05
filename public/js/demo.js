@@ -69,8 +69,8 @@ async function generateForm(useRealAI = false) {
         const errorMessage = useRealAI 
             ? `<strong>Error:</strong> ${error.message}
                <br><br>
-               <strong>Note:</strong> To use real AI generation with Groq, configure Groq API key in Render environment variables:
-               <br>• GROQ_API_KEY (get free key at <a href="https://console.groq.com/keys" target="_blank">console.groq.com/keys</a>)
+               <strong>Note:</strong> To use real AI generation with Hugging Face, configure HF_TOKEN in Render environment variables:
+               <br>• HF_TOKEN (get free token at <a href="https://huggingface.co/settings/tokens" target="_blank">huggingface.co/settings/tokens</a>)
                <br><br>
                Use the "Demo Mode" button to see the mock response without API keys.`
             : `<strong>Error:</strong> ${error.message}`;

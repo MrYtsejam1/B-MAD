@@ -22,15 +22,15 @@ export class FormController {
       const userId = req.user?.userId;
       const forceRealAI = req.headers['x-force-real-ai'] === 'true';
 
-      const hasGroqKey = !!process.env.GROQ_API_KEY && process.env.GROQ_API_KEY !== 'demo_key_not_configured';
+      const hasHFToken = !!process.env.HF_TOKEN && process.env.HF_TOKEN !== 'demo_key_not_configured';
       
-      if (!hasGroqKey && !forceRealAI) {
+      if (!hasHFToken && !forceRealAI) {
         logger.info('Using mock response for demo (no API keys configured)');
         
         const mockSchema = {
           id: 'demo-form-' + Date.now(),
           title: description.length > 50 ? description.substring(0, 50) + '...' : description,
-          description: 'This is a demo form generated without AI. Configure Groq API key for real AI-powered generation.',
+          description: 'This is a demo form generated without AI. Configure Hugging Face token for real AI-powered generation.',
           fields: [
             {
               id: 'username',
@@ -116,13 +116,13 @@ export class FormController {
         return;
       }
 
-      if (forceRealAI && !hasGroqKey) {
-        logger.warn('Real AI generation requested but no Groq API key configured');
+      if (forceRealAI && !hasHFToken) {
+        logger.warn('Real AI generation requested but no HF_TOKEN configured');
         res.status(503).json({
           error: {
             code: 'AI_NOT_CONFIGURED',
-            message: 'Real AI generation requires Groq API key to be configured.',
-            details: 'Please set GROQ_API_KEY environment variable in Render dashboard. Get your free API key at https://console.groq.com/keys'
+            message: 'Real AI generation requires Hugging Face token to be configured.',
+            details: 'Please set HF_TOKEN environment variable in Render dashboard. Get your free token at https://huggingface.co/settings/tokens'
           }
         });
         return;

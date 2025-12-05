@@ -25,5 +25,5 @@ services:
         value: "100"
       - key: JWT_SECRET
         generateValue: true
-      - key: GROQ_API_KEY
+      - key: HF_TOKEN
         value: demo_key_not_configured

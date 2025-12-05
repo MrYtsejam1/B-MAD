@@ -1,4 +1,4 @@
-import Groq from 'groq-sdk';
+import { InferenceClient } from '@huggingface/inference';
 import { z } from 'zod';
 import { FormSchema, GenerationOptions } from '../models/form-schema.model';
 import { Sanitizer } from '../utils/sanitizer';
@@ -6,24 +6,24 @@ import { logger } from '../utils/logger';
 import { EmulatedAIService } from './emulated-ai.service';
 
 /**
- * Groq service for AI-powered form generation
+ * Hugging Face Inference service for AI-powered form generation
  */
 export class LangChainService {
-  private groq: Groq | null = null;
+  private hf: InferenceClient | null = null;
   private readonly model: string = 'openai/gpt-oss-120b:groq';
   private readonly maxRetries: number = 3;
   private readonly baseDelay: number = 1000;
   private emulatedAI: EmulatedAIService;
 
   constructor() {
-    const apiKey = process.env.GROQ_API_KEY;
+    const token = process.env.HF_TOKEN;
     this.emulatedAI = new EmulatedAIService();
     
-    if (apiKey && apiKey !== 'demo_key_not_configured') {
-      this.groq = new Groq({ apiKey });
-      logger.info('Groq client initialized', { model: this.model });
+    if (token && token !== 'demo_key_not_configured') {
+      this.hf = new InferenceClient(token);
+      logger.info('Hugging Face Inference client initialized', { model: this.model });
     } else {
-      logger.info('No Groq API key configured, will use emulated AI');
+      logger.info('No HF_TOKEN configured, will use emulated AI');
     }
   }
 
@@ -83,18 +83,18 @@ export class LangChainService {
         throw new Error('Description must be at least 10 characters');
       }
 
-      if (!this.groq) {
-        logger.info('Using emulated AI (no API key configured)');
+      if (!this.hf) {
+        logger.info('Using emulated AI (no HF_TOKEN configured)');
         return this.emulatedAI.generateFormSchema(description);
       }
 
-      logger.info('Starting form generation with Groq', { description, options, model: this.model });
+      logger.info('Starting form generation with Hugging Face', { description, options, model: this.model });
 
       const prompt = this.buildPrompt(description, options);
 
       try {
         const response = await this.retryWithBackoff(async () => {
-          return await this.groq!.chat.completions.create({
+          return await this.hf!.chatCompletion({
             model: this.model,
             messages: [
               {
@@ -111,7 +111,7 @@ export class LangChainService {
         return await this.processAIResponse(content, this.model, startTime);
         
       } catch (error: any) {
-        logger.warn('Groq model failed, falling back to emulated AI', { 
+        logger.warn('Hugging Face model failed, falling back to emulated AI', { 
           model: this.model, 
           error: error.message 
         });
@@ -256,7 +256,7 @@ Return ONLY the JSON object, no additional text or explanation.`;
 
         const delay = this.baseDelay * Math.pow(2, attempt);
         
-        logger.warn('Groq API call failed, retrying', {
+        logger.warn('Hugging Face API call failed, retrying', {
           attempt: attempt + 1,
           maxRetries: this.maxRetries,
           delay,
