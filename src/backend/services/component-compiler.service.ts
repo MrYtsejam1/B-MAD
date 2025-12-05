@@ -17,7 +17,7 @@ export class ComponentCompilerService {
         throw new Error(`Component validation failed: ${validation.errors?.join(', ')}`);
       }
 
-      const parsed = this.parseTypeScript(source.typescript);
+      this.parseTypeScript(source.typescript);
 
       const javascript = this.compileTypeScript(source.typescript);
 

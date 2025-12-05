@@ -3,7 +3,6 @@ import { NLPExtractors } from './nlp-extractors';
 
 export class NLPService {
   private readonly extractors: NLPExtractors;
-  private readonly _confidenceThreshold = 0.7; // Reserved for future confidence scoring
 
   constructor() {
     this.extractors = new NLPExtractors();

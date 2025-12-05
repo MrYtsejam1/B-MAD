@@ -134,7 +134,7 @@ ${fieldInputs}
 `;
   }
 
-  private generateComponentStyles(formData: any): string {
+  private generateComponentStyles(_formData: any): string {
     return `
 .generated-form {
   max-width: 600px;
