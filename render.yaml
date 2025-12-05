@@ -25,5 +25,5 @@ services:
         value: "100"
       - key: JWT_SECRET
         generateValue: true
-      - key: HUGGINGFACE_API_KEY
+      - key: GROQ_API_KEY
         value: demo_key_not_configured
