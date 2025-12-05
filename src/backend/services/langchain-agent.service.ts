@@ -1,7 +1,7 @@
 import { HfInference } from '@huggingface/inference';
 import { AgentRequest, AgentResponse, IntentType, ComplexityLevel, AgentEvent } from '../models/agent.model';
 import { AgentToolsService } from './agent-tools.service';
-import { OutputModeService, OutputMode } from './output-mode.service';
+import { OutputModeService } from './output-mode.service';
 
 export class LangChainAgentService {
   private hf: HfInference;
