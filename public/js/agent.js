@@ -125,6 +125,9 @@ class AgentUI {
         const streamLog = document.getElementById('agentStreamLog');
         streamLog.innerHTML = '';
         
+        const agentResult = document.getElementById('agentResult');
+        agentResult.innerHTML = '';
+        
         this.addLogEntry('user', userInput);
         
         const context = {};
@@ -371,9 +374,11 @@ document.addEventListener('DOMContentLoaded', function() {
     agentUI = new AgentUI();
     
     const agentBtn = document.getElementById('generateAgentBtn');
-    if (agentBtn) {
+    const promptField = document.getElementById('prompt');
+    
+    if (agentBtn && promptField) {
         agentBtn.addEventListener('click', () => {
-            const prompt = document.getElementById('prompt').value;
+            const prompt = promptField.value;
             const model = document.getElementById('modelSelect').value;
             const mcpServer = document.getElementById('mcpServerSelect').value;
             
@@ -382,7 +387,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 return;
             }
             
+            console.log('[AgentUI] Starting new conversation with prompt:', prompt);
             agentUI.startConversation(prompt, model, mcpServer);
+            
+            promptField.value = '';
+            promptField.focus();
+        });
+        
+        promptField.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                agentBtn.click();
+            }
         });
     }
 });
