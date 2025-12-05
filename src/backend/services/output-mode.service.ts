@@ -42,20 +42,42 @@ export class OutputModeService {
       title: formData.title || 'Generated Form',
       description: formData.description || '',
       properties: {},
-      required: formData.requiredFields || [],
+      required: [] as string[],
     };
 
     for (const field of formData.fields || []) {
-      (schema.properties as any)[field] = {
-        type: 'string',
-        title: this.formatFieldName(field),
+      const fieldName = typeof field === 'string' ? field : field.name;
+      const fieldLabel = typeof field === 'string' ? this.formatFieldName(field) : (field.label || this.formatFieldName(field.name));
+      const fieldType = typeof field === 'string' ? 'string' : this.mapFieldTypeToJsonSchema(field.type || 'text');
+      const fieldRequired = typeof field === 'string' ? false : (field.required || false);
+      
+      (schema.properties as any)[fieldName] = {
+        type: fieldType,
+        title: fieldLabel,
       };
+      
+      if (fieldRequired) {
+        schema.required.push(fieldName);
+      }
     }
 
     return {
       mode: OutputMode.JSON_SCHEMA,
       schema,
     };
+  }
+
+  private mapFieldTypeToJsonSchema(type: string): string {
+    const typeMap: Record<string, string> = {
+      'text': 'string',
+      'email': 'string',
+      'tel': 'string',
+      'url': 'string',
+      'textarea': 'string',
+      'number': 'number',
+      'date': 'string',
+    };
+    return typeMap[type] || 'string';
   }
 
   private async generateWebComponent(formData: any): Promise<any> {
@@ -129,7 +151,8 @@ class GeneratedFormComponent extends HTMLElement {
         font-weight: bold;
         color: #555;
       }
-      .form-field input {
+      .form-field input,
+      .form-field textarea {
         width: 100%;
         padding: 10px;
         border: 1px solid #ddd;
@@ -137,9 +160,14 @@ class GeneratedFormComponent extends HTMLElement {
         font-size: 14px;
         box-sizing: border-box;
       }
-      .form-field input:focus {
+      .form-field input:focus,
+      .form-field textarea:focus {
         outline: none;
         border-color: #4CAF50;
+      }
+      .form-field textarea {
+        resize: vertical;
+        min-height: 80px;
       }
       .submit-btn {
         background-color: #4CAF50;
@@ -176,17 +204,44 @@ class GeneratedFormComponent extends HTMLElement {
       const fieldDiv = document.createElement('div');
       fieldDiv.className = 'form-field';
       
+      const fieldName = typeof field === 'string' ? field : field.name;
+      const fieldLabel = typeof field === 'string' ? this.formatFieldName(field) : (field.label || this.formatFieldName(field.name));
+      const fieldType = typeof field === 'string' ? 'text' : (field.type || 'text');
+      const fieldRequired = typeof field === 'string' ? false : (field.required || false);
+      const fieldPlaceholder = typeof field === 'string' ? ('Enter ' + this.formatFieldName(field).toLowerCase()) : (field.placeholder || '');
+      
       const label = document.createElement('label');
-      label.setAttribute('for', field);
-      label.textContent = this.formatFieldName(field);
+      label.setAttribute('for', fieldName);
+      label.textContent = fieldLabel;
+      if (fieldRequired) {
+        label.textContent += ' *';
+      }
       fieldDiv.appendChild(label);
       
-      const input = document.createElement('input');
-      input.type = 'text';
-      input.id = field;
-      input.name = field;
-      input.placeholder = 'Enter ' + this.formatFieldName(field).toLowerCase();
-      fieldDiv.appendChild(input);
+      if (fieldType === 'textarea') {
+        const textarea = document.createElement('textarea');
+        textarea.id = fieldName;
+        textarea.name = fieldName;
+        textarea.placeholder = fieldPlaceholder;
+        textarea.required = fieldRequired;
+        textarea.rows = 4;
+        textarea.style.width = '100%';
+        textarea.style.padding = '10px';
+        textarea.style.border = '1px solid #ddd';
+        textarea.style.borderRadius = '4px';
+        textarea.style.fontSize = '14px';
+        textarea.style.boxSizing = 'border-box';
+        textarea.style.fontFamily = 'Arial, sans-serif';
+        fieldDiv.appendChild(textarea);
+      } else {
+        const input = document.createElement('input');
+        input.type = fieldType;
+        input.id = fieldName;
+        input.name = fieldName;
+        input.placeholder = fieldPlaceholder;
+        input.required = fieldRequired;
+        fieldDiv.appendChild(input);
+      }
       
       form.appendChild(fieldDiv);
     });
