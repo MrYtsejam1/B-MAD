@@ -136,7 +136,7 @@ Respond with only the category name, nothing else.`;
     return ComplexityLevel.MODERATE;
   }
 
-  private async generateQuestions(userInput: string, intent: IntentType, _complexity: ComplexityLevel): Promise<string[] | undefined> {
+  private async generateQuestions(userInput: string, intent: IntentType, complexity: ComplexityLevel): Promise<string[] | undefined> {
     const mcpServerId = intent === IntentType.INVOICE_SUBMISSION ? 'invoice' : 
                         intent === IntentType.TRAVEL_BOOKING ? 'travel' : null;
 
@@ -149,10 +149,6 @@ Respond with only the category name, nothing else.`;
 
     const mentionedFields = this.extractMentionedFields(userInput, requiredFields);
     const missingFields = requiredFields.filter((field: string) => !mentionedFields.includes(field));
-
-    if (missingFields.length === 0) {
-      return undefined;
-    }
 
     const questions: string[] = [];
     const fieldQuestions: Record<string, string> = {
@@ -167,12 +163,71 @@ Respond with only the category name, nothing else.`;
       travelers: 'How many travelers?',
     };
 
-    for (const field of missingFields.slice(0, 3)) {
-      const question = fieldQuestions[field] || `What is the ${field}?`;
-      questions.push(question);
+    if (missingFields.length > 0) {
+      for (const field of missingFields.slice(0, 3)) {
+        const question = fieldQuestions[field] || `What is the ${field}?`;
+        questions.push(question);
+      }
+    }
+
+    if (complexity === ComplexityLevel.COMPLEX && intent === IntentType.TRAVEL_BOOKING) {
+      const extractedInfo = await this.extractTravelDetails(userInput);
+      
+      if (extractedInfo) {
+        questions.push(`I understand you're planning a trip. Let me confirm the details:`);
+        questions.push(`📍 From: ${extractedInfo.origin || '?'} → To: ${extractedInfo.destination || '?'}`);
+        questions.push(`📅 Dates: ${extractedInfo.startDate || '?'} to ${extractedInfo.endDate || '?'}`);
+        questions.push(`✈️ Flights: ${extractedInfo.flights || 'Not specified'}`);
+        questions.push(`🏨 Hotel: ${extractedInfo.hotel || 'Not specified'}`);
+        questions.push(`👥 Travelers: ${extractedInfo.travelers || 'Not specified'}`);
+        questions.push(`Is this information correct? Any changes or additional preferences (cabin class, baggage, special requests)?`);
+      } else {
+        questions.push('I see you want to book travel. Could you confirm the key details?');
+        questions.push('Any preferences for cabin class, baggage, or special requests?');
+      }
+      
+      return questions;
     }
 
     return questions.length > 0 ? questions : undefined;
+  }
+
+  private async extractTravelDetails(userInput: string): Promise<any> {
+    try {
+      const prompt = `Extract travel booking details from the following text. Return ONLY a JSON object:
+{
+  "origin": "departure city",
+  "destination": "arrival city",
+  "startDate": "departure date",
+  "endDate": "return date",
+  "flights": "flight numbers if mentioned",
+  "hotel": "hotel name if mentioned",
+  "travelers": "traveler names or count"
+}
+
+Text: "${userInput}"
+
+Return ONLY the JSON object:`;
+
+      const response = await this.hf.chatCompletion({
+        model: this.models.generation,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 300,
+        temperature: 0.2,
+      });
+
+      const content = response.choices[0]?.message?.content?.trim() || '';
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[LangChainAgent] Failed to extract travel details:', error);
+      return null;
+    }
   }
 
   private extractMentionedFields(userInput: string, requiredFields: string[]): string[] {
