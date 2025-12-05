@@ -546,51 +546,6 @@
 
     <script defer src="/js/demo.js"></script>
     <script defer src="/js/agent.js"></script>
-    <script>
-        // Mode switching
-        document.addEventListener('DOMContentLoaded', function() {
-            const modeRadios = document.querySelectorAll('input[name="mode"]');
-            const simpleModeButtons = document.getElementById('simpleModeButtons');
-            const advancedModeButtons = document.getElementById('advancedModeButtons');
-            const agentStreamContainer = document.getElementById('agentStreamContainer');
-            const result = document.getElementById('result');
-            const mcpServerGroup = document.getElementById('mcpServerGroup');
-
-            function switchMode() {
-                const selectedMode = document.querySelector('input[name="mode"]:checked').value;
-                
-                if (selectedMode === 'simple') {
-                    simpleModeButtons.style.display = 'block';
-                    advancedModeButtons.style.display = 'none';
-                    agentStreamContainer.style.display = 'none';
-                    mcpServerGroup.style.display = 'none';
-                    result.style.display = 'block';
-                } else {
-                    simpleModeButtons.style.display = 'none';
-                    advancedModeButtons.style.display = 'block';
-                    agentStreamContainer.style.display = 'block';
-                    mcpServerGroup.style.display = 'block';
-                    result.style.display = 'none';
-                }
-            }
-
-            modeRadios.forEach(radio => {
-                radio.addEventListener('change', switchMode);
-            });
-
-            switchMode();
-
-            // Load version info
-            fetch('/version')
-                .then(res => res.json())
-                .then(data => {
-                    document.getElementById('versionFooter').textContent = 
-                        `Version: ${data.version} | Sprints: ${data.sprints} | ${new Date(data.timestamp).toLocaleString()}`;
-                })
-                .catch(() => {
-                    document.getElementById('versionFooter').textContent = 'Version: dev';
-                });
-        });
-    </script>
+    <script defer src="/js/mode-switch.js"></script>
 </body>
 </html>

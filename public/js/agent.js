@@ -16,6 +16,10 @@ class AgentClient {
         }
 
         this.currentStream = new AbortController();
+        
+        console.log('🤖 ADVANCED MODE: Starting SSE stream to /api/v1/agent/stream');
+        console.log('Selected model:', model);
+        console.log('Context:', context);
 
         try {
             const response = await fetch('/api/v1/agent/stream', {
