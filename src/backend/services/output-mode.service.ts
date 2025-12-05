@@ -61,8 +61,8 @@ export class OutputModeService {
   private async generateWebComponent(formData: any): Promise<any> {
     const componentSource: ComponentSource = {
       typescript: this.generateComponentTypeScript(formData),
-      template: '',
-      styles: '',
+      template: '<div data-wc-root></div>',
+      styles: ':host{display:block;}',
       metadata: {
         selector: 'generated-form-component',
         inputs: [],
@@ -93,7 +93,7 @@ class GeneratedFormComponent extends HTMLElement {
   constructor() {
     super();
     this.attachShadow({ mode: 'open' });
-    this.formData = {};
+    this.data = ${JSON.stringify({ title, description, fields })};
   }
 
   connectedCallback() {
@@ -102,72 +102,105 @@ class GeneratedFormComponent extends HTMLElement {
   }
 
   render() {
-    const template = \\\`
-      <style>
-        .generated-form {
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-          font-family: Arial, sans-serif;
-        }
-        .generated-form h2 {
-          color: #333;
-          margin-bottom: 10px;
-        }
-        .generated-form p {
-          color: #666;
-          margin-bottom: 20px;
-        }
-        .form-field {
-          margin-bottom: 15px;
-        }
-        .form-field label {
-          display: block;
-          margin-bottom: 5px;
-          font-weight: bold;
-          color: #555;
-        }
-        .form-field input {
-          width: 100%;
-          padding: 10px;
-          border: 1px solid #ddd;
-          border-radius: 4px;
-          font-size: 14px;
-          box-sizing: border-box;
-        }
-        .form-field input:focus {
-          outline: none;
-          border-color: #4CAF50;
-        }
-        .submit-btn {
-          background-color: #4CAF50;
-          color: white;
-          padding: 12px 24px;
-          border: none;
-          border-radius: 4px;
-          cursor: pointer;
-          font-size: 16px;
-          width: 100%;
-        }
-        .submit-btn:hover {
-          background-color: #45a049;
-        }
-      </style>
-      <div class="generated-form">
-        <h2>\\\${title}</h2>
-        \\\${description ? \\\`<p>\\\${description}</p>\\\` : ''}
-        <form id="dynamicForm">
-          \\\${fields.map((f) => \\\`
-            <div class="form-field">
-              <label for="\\\${f}">\\\${this.formatFieldName(f)}</label>
-              <input type="text" id="\\\${f}" name="\\\${f}" placeholder="Enter \\\${this.formatFieldName(f).toLowerCase()}">
-            </div>
-          \\\`).join('')}
-          <button type="submit" class="submit-btn">Submit</button>
-        </form>
-      </div>
-    \\\`;
-    this.shadowRoot.innerHTML = template;
+    const { title, description, fields } = this.data;
+    
+    const style = document.createElement('style');
+    style.textContent = \`
+      .generated-form {
+        max-width: 600px;
+        margin: 0 auto;
+        padding: 20px;
+        font-family: Arial, sans-serif;
+      }
+      .generated-form h2 {
+        color: #333;
+        margin-bottom: 10px;
+      }
+      .generated-form p {
+        color: #666;
+        margin-bottom: 20px;
+      }
+      .form-field {
+        margin-bottom: 15px;
+      }
+      .form-field label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+        color: #555;
+      }
+      .form-field input {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        font-size: 14px;
+        box-sizing: border-box;
+      }
+      .form-field input:focus {
+        outline: none;
+        border-color: #4CAF50;
+      }
+      .submit-btn {
+        background-color: #4CAF50;
+        color: white;
+        padding: 12px 24px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        width: 100%;
+      }
+      .submit-btn:hover {
+        background-color: #45a049;
+      }
+    \`;
+    
+    const container = document.createElement('div');
+    container.className = 'generated-form';
+    
+    const h2 = document.createElement('h2');
+    h2.textContent = title;
+    container.appendChild(h2);
+    
+    if (description) {
+      const p = document.createElement('p');
+      p.textContent = description;
+      container.appendChild(p);
+    }
+    
+    const form = document.createElement('form');
+    form.id = 'dynamicForm';
+    
+    fields.forEach(field => {
+      const fieldDiv = document.createElement('div');
+      fieldDiv.className = 'form-field';
+      
+      const label = document.createElement('label');
+      label.setAttribute('for', field);
+      label.textContent = this.formatFieldName(field);
+      fieldDiv.appendChild(label);
+      
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.id = field;
+      input.name = field;
+      input.placeholder = 'Enter ' + this.formatFieldName(field).toLowerCase();
+      fieldDiv.appendChild(input);
+      
+      form.appendChild(fieldDiv);
+    });
+    
+    const submitBtn = document.createElement('button');
+    submitBtn.type = 'submit';
+    submitBtn.className = 'submit-btn';
+    submitBtn.textContent = 'Submit';
+    form.appendChild(submitBtn);
+    
+    container.appendChild(form);
+    
+    this.shadowRoot.appendChild(style);
+    this.shadowRoot.appendChild(container);
   }
 
   formatFieldName(field) {
