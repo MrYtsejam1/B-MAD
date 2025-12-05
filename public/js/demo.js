@@ -18,6 +18,8 @@ document.addEventListener('DOMContentLoaded', function() {
 async function generateForm(useRealAI = false) {
     console.log('Generate button clicked, useRealAI:', useRealAI);
     const prompt = document.getElementById('prompt').value;
+    const modelSelect = document.getElementById('modelSelect');
+    const selectedModel = modelSelect ? modelSelect.value : null;
     const resultDiv = document.getElementById('result');
     const btn = useRealAI ? document.getElementById('generateRealBtn') : document.getElementById('generateBtn');
 
@@ -27,10 +29,11 @@ async function generateForm(useRealAI = false) {
     }
 
     btn.disabled = true;
+    const modelName = selectedModel ? selectedModel.split('/').pop().split(':')[0] : '';
     resultDiv.innerHTML = `
         <div class="loading">
             <div class="spinner"></div>
-            <p>Generating form schema${useRealAI ? ' with AI' : ' (demo mode)'}...</p>
+            <p>Generating form schema${useRealAI ? ` with ${modelName}` : ' (demo mode)'}...</p>
         </div>
     `;
 
@@ -44,16 +47,22 @@ async function generateForm(useRealAI = false) {
             headers['X-Force-Real-AI'] = 'true';
         }
         
+        const requestBody = {
+            description: prompt,
+            options: {
+                purpose: 'demo',
+                audience: 'general users'
+            }
+        };
+        
+        if (useRealAI && selectedModel) {
+            requestBody.model = selectedModel;
+        }
+        
         const response = await fetch('/api/v1/forms/generate', {
             method: 'POST',
             headers: headers,
-            body: JSON.stringify({
-                description: prompt,
-                options: {
-                    purpose: 'demo',
-                    audience: 'general users'
-                }
-            })
+            body: JSON.stringify(requestBody)
         });
 
         const data = await response.json();

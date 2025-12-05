@@ -324,8 +324,8 @@
         <div class="demo-card">
             <h2>🎯 API Demo - Generate Form from Natural Language</h2>
             <p style="color: #666; margin-bottom: 20px;">
-                Note: This demo uses Hugging Face's agentica-org/DeepCoder-14B-Preview:featherless-ai model for AI-powered form generation.
-                The "Demo Mode" button works without API keys. The "Real AI" button requires a Hugging Face token.
+                Note: This demo uses Hugging Face Inference API with Featherless AI models for AI-powered form generation.
+                The "Demo Mode" button works without API keys. The "Real AI" button requires a Hugging Face token and lets you choose from 3 different models.
             </p>
 
             <div class="demo-section">
@@ -337,12 +337,24 @@
                         placeholder="Example: Create a contact form with name, email, phone number, and message fields. Make email and name required."
                     >Create a user registration form with username, email, password, confirm password, and agree to terms checkbox. Make all fields required.</textarea>
                 </div>
-                <button class="btn" id="generateBtn">
-                    Generate Form (Demo Mode)
-                </button>
-                <button class="btn" id="generateRealBtn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin-left: 10px;">
-                    Generate with AI (HF)
-                </button>
+                
+                <div class="input-group" style="margin-top: 15px;">
+                    <label for="modelSelect">Select AI Model (for Real AI mode):</label>
+                    <select id="modelSelect" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: white;">
+                        <option value="agentica-org/DeepCoder-14B-Preview:featherless-ai" selected>DeepCoder-14B-Preview (Featherless AI)</option>
+                        <option value="zai-org/GLM-4-32B-0414:featherless-ai">GLM-4-32B-0414 (Featherless AI)</option>
+                        <option value="Qwen/Qwen2.5-Coder-7B-Instruct:featherless-ai">Qwen2.5-Coder-7B-Instruct (Featherless AI)</option>
+                    </select>
+                </div>
+                
+                <div style="margin-top: 15px;">
+                    <button class="btn" id="generateBtn">
+                        Generate Form (Demo Mode)
+                    </button>
+                    <button class="btn" id="generateRealBtn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin-left: 10px;">
+                        Generate with AI (HF)
+                    </button>
+                </div>
             </div>
 
             <div id="result"></div>
