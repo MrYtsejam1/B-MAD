@@ -80,7 +80,7 @@ export class MCPGatewayService {
       const valid = validate(payload);
 
       if (!valid) {
-        return { valid: false, errors: validate.errors };
+        return { valid: false, errors: validate.errors ?? undefined };
       }
 
       return { valid: true };
@@ -126,8 +126,7 @@ export class MCPGatewayService {
     }
   }
 
-  private async callLiveAPI(server: MCPServer, operation: MCPOperation, payload: any): Promise<any> {
-    const url = `${server.baseUrl}${operation.path}`;
+  private async callLiveAPI(_server: MCPServer, _operation: MCPOperation, _payload: any): Promise<any> {
     throw new Error('Live API not implemented yet');
   }
 

@@ -78,8 +78,8 @@ export class OutputModeService {
     };
   }
 
-  private generateComponentTypeScript(formData: any): string {
-    const fields = formData.fields || [];
+  private generateComponentTypeScript(_formData: any): string {
+    const fields = _formData.fields || [];
     const fieldProperties = fields.map((f: string) => `  ${f}: string = '';`).join('\n');
 
     return `

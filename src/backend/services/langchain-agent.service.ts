@@ -121,7 +121,7 @@ Respond with only the category name, nothing else.`;
     return ComplexityLevel.MODERATE;
   }
 
-  private async generateQuestions(userInput: string, intent: IntentType, complexity: ComplexityLevel): Promise<string[] | undefined> {
+  private async generateQuestions(userInput: string, intent: IntentType, _complexity: ComplexityLevel): Promise<string[] | undefined> {
     const mcpServerId = intent === IntentType.INVOICE_SUBMISSION ? 'invoice' : 
                         intent === IntentType.TRAVEL_BOOKING ? 'travel' : null;
 
@@ -197,7 +197,7 @@ Respond with only the category name, nothing else.`;
     return mentioned;
   }
 
-  private async generateOutput(userInput: string, intent: IntentType, complexity: ComplexityLevel): Promise<any> {
+  private async generateOutput(_userInput: string, intent: IntentType, _complexity: ComplexityLevel): Promise<any> {
     
     const mcpServerId = intent === IntentType.INVOICE_SUBMISSION ? 'invoice' : 
                         intent === IntentType.TRAVEL_BOOKING ? 'travel' : null;

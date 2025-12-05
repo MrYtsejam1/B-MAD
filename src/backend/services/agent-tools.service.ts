@@ -26,7 +26,7 @@ export class AgentToolsService {
         parameters: {
           serverId: 'string',
         },
-        execute: this.mcpDescribe.bind(this),
+        execute: async (params: { serverId: string }) => this.mcpDescribe(params.serverId),
       },
       {
         name: 'mcp.validate',
@@ -36,7 +36,8 @@ export class AgentToolsService {
           operationId: 'string',
           payload: 'object',
         },
-        execute: this.mcpValidate.bind(this),
+        execute: async (params: { serverId: string; operationId: string; payload: any }) =>
+          this.mcpValidate(params.serverId, params.operationId, params.payload),
       },
       {
         name: 'mcp.call',
@@ -46,7 +47,8 @@ export class AgentToolsService {
           operationId: 'string',
           payload: 'object',
         },
-        execute: this.mcpCall.bind(this),
+        execute: async (params: { serverId: string; operationId: string; payload: any }) =>
+          this.mcpCall(params.serverId, params.operationId, params.payload),
       },
       {
         name: 'ocr.process',
@@ -55,7 +57,8 @@ export class AgentToolsService {
           imageBuffer: 'Buffer',
           mimeType: 'string',
         },
-        execute: this.ocrProcess.bind(this),
+        execute: async (params: { imageBuffer: Buffer; mimeType: string; filename?: string }) =>
+          this.ocrProcess(params.imageBuffer, params.mimeType, params.filename),
       },
       {
         name: 'nlp.extract',
@@ -64,7 +67,8 @@ export class AgentToolsService {
           text: 'string',
           context: 'object (optional)',
         },
-        execute: this.nlpExtract.bind(this),
+        execute: async (params: { text: string; context?: any }) =>
+          this.nlpExtract(params.text, params.context),
       },
     ];
   }
