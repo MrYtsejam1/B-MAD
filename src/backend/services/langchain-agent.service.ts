@@ -212,7 +212,7 @@ Respond with only the category name, nothing else.`;
     return mentioned;
   }
 
-  private async generateOutput(_userInput: string, intent: IntentType, _complexity: ComplexityLevel, model?: string): Promise<any> {
+  private async generateOutput(userInput: string, intent: IntentType, _complexity: ComplexityLevel, model?: string): Promise<any> {
     
     const mcpServerId = intent === IntentType.INVOICE_SUBMISSION ? 'invoice' : 
                         intent === IntentType.TRAVEL_BOOKING ? 'travel' : null;
@@ -228,11 +228,7 @@ Respond with only the category name, nothing else.`;
         fields: capabilities.requirements?.requiredFields || [],
       };
     } else {
-      formData = {
-        title: 'General Form',
-        description: 'Generated from user input',
-        fields: ['field1', 'field2'],
-      };
+      formData = await this.extractFormFromPrompt(userInput);
     }
 
     const selectedModel = model || this.models.fallback;
@@ -244,7 +240,86 @@ Respond with only the category name, nothing else.`;
       ...output,
       reasoning: mcpServerId 
         ? `Generated form for ${intent} based on MCP server configuration`
-        : 'Generated general form',
+        : `Generated form from user prompt: "${userInput.substring(0, 50)}..."`,
+    };
+  }
+
+  private async extractFormFromPrompt(userInput: string): Promise<any> {
+    try {
+      const prompt = `Extract form fields from the following user request. Return ONLY a JSON object with this exact structure:
+{
+  "title": "Form Title",
+  "description": "Brief description",
+  "fields": [
+    {"name": "fieldName", "label": "Field Label", "type": "text", "required": true, "placeholder": "Enter..."}
+  ]
+}
+
+Supported types: text, email, number, date, tel, url, textarea
+Extract meaningful field names from the user's request. If the user mentions specific fields, use those. Otherwise, infer appropriate fields.
+
+User request: "${userInput}"
+
+Return ONLY the JSON object, no other text:`;
+
+      const response = await this.hf.chatCompletion({
+        model: this.models.generation,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 500,
+        temperature: 0.3,
+      });
+
+      const content = response.choices[0]?.message?.content?.trim() || '';
+      
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        const parsed = JSON.parse(jsonMatch[0]);
+        if (parsed.fields && Array.isArray(parsed.fields) && parsed.fields.length > 0) {
+          console.log('[LangChainAgent] Extracted form fields:', parsed.fields.map((f: any) => f.name).join(', '));
+          return parsed;
+        }
+      }
+      
+      throw new Error('Failed to parse LLM response');
+    } catch (error) {
+      console.error('[LangChainAgent] LLM extraction failed, using heuristic fallback:', error);
+      return this.extractFormHeuristic(userInput);
+    }
+  }
+
+  private extractFormHeuristic(userInput: string): any {
+    const lowerInput = userInput.toLowerCase();
+    const fields: any[] = [];
+    
+    const commonFields: Record<string, any> = {
+      name: { name: 'name', label: 'Name', type: 'text', required: true, placeholder: 'Enter your name' },
+      email: { name: 'email', label: 'Email', type: 'email', required: true, placeholder: 'you@example.com' },
+      phone: { name: 'phone', label: 'Phone', type: 'tel', required: false, placeholder: '+1 (555) 000-0000' },
+      address: { name: 'address', label: 'Address', type: 'text', required: false, placeholder: 'Enter address' },
+      message: { name: 'message', label: 'Message', type: 'textarea', required: false, placeholder: 'Enter your message' },
+      date: { name: 'date', label: 'Date', type: 'date', required: false, placeholder: '' },
+      amount: { name: 'amount', label: 'Amount', type: 'number', required: false, placeholder: '0.00' },
+      description: { name: 'description', label: 'Description', type: 'textarea', required: false, placeholder: 'Enter description' },
+    };
+
+    for (const [key, field] of Object.entries(commonFields)) {
+      if (lowerInput.includes(key)) {
+        fields.push(field);
+      }
+    }
+
+    if (fields.length === 0) {
+      fields.push(
+        { name: 'name', label: 'Name', type: 'text', required: true, placeholder: 'Enter your name' },
+        { name: 'email', label: 'Email', type: 'email', required: true, placeholder: 'you@example.com' },
+        { name: 'message', label: 'Message', type: 'textarea', required: false, placeholder: 'Enter your message' }
+      );
+    }
+
+    return {
+      title: 'Contact Form',
+      description: 'Generated from your request',
+      fields,
     };
   }
 
