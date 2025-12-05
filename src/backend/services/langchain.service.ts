@@ -1,26 +1,26 @@
-import { HfInference } from '@huggingface/inference';
+import { GoogleGenerativeAI } from '@google/generative-ai';
 import { z } from 'zod';
 import { FormSchema, GenerationOptions } from '../models/form-schema.model';
 import { Sanitizer } from '../utils/sanitizer';
 import { logger } from '../utils/logger';
 
 /**
- * Hugging Face service for AI-powered form generation using DeepSeek-R1
+ * Google Gemini service for AI-powered form generation
  */
 export class LangChainService {
-  private hf: HfInference;
-  private readonly model: string = 'deepseek-ai/DeepSeek-R1';
+  private genAI: GoogleGenerativeAI;
+  private readonly model: string = 'gemini-pro';
   private readonly maxRetries: number = 3;
   private readonly baseDelay: number = 1000;
 
   constructor() {
-    const apiKey = process.env.HUGGINGFACE_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error('HUGGINGFACE_API_KEY environment variable is required');
+      throw new Error('GEMINI_API_KEY environment variable is required');
     }
     
-    this.hf = new HfInference(apiKey);
-    logger.info('Hugging Face client initialized', { model: this.model });
+    this.genAI = new GoogleGenerativeAI(apiKey);
+    logger.info('Google Gemini client initialized', { model: this.model });
   }
 
   /**
@@ -75,7 +75,7 @@ export class LangChainService {
     const startTime = Date.now();
 
     try {
-      logger.info('Starting form generation with DeepSeek-R1', { description, options });
+      logger.info('Starting form generation with Google Gemini', { description, options });
 
       if (!description || description.trim().length < 10) {
         throw new Error('Description must be at least 10 characters');
@@ -84,20 +84,12 @@ export class LangChainService {
       const prompt = this.buildPrompt(description, options);
 
       const response = await this.retryWithBackoff(async () => {
-        return await this.hf.chatCompletion({
-          model: this.model,
-          messages: [
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          max_tokens: 2000,
-          temperature: 0.7
-        });
+        const model = this.genAI.getGenerativeModel({ model: this.model });
+        const result = await model.generateContent(prompt);
+        return result.response;
       });
 
-      const content = response.choices[0]?.message?.content || '';
+      const content = response.text() || '';
       
       logger.info('Raw AI response (first 1000 chars)', { content: content.substring(0, 1000) });
       
@@ -228,7 +220,7 @@ Return ONLY the JSON object, no additional text or explanation.`;
 
         const delay = this.baseDelay * Math.pow(2, attempt);
         
-        logger.warn('HF API call failed, retrying', {
+        logger.warn('Gemini API call failed, retrying', {
           attempt: attempt + 1,
           maxRetries: this.maxRetries,
           delay,
@@ -259,9 +251,11 @@ Return ONLY the JSON object, no additional text or explanation.`;
 
   /**
    * Extract JSON object from AI response text
-   * DeepSeek-R1 often returns <think> tags before the actual JSON
+   * Handles various AI response formats including code blocks and extra text
    */
   private extractJSON(content: string): string | null {
+    content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '');
+    
     const jsonObjects: string[] = [];
     let braceCount = 0;
     let startIndex = -1;

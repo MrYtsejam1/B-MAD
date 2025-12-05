@@ -27,7 +27,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "@huggingface/inference": "^4.13.4",
+    "@google/generative-ai": "^0.24.1",
     "@types/ioredis": "^4.28.10",
     "bcrypt": "^5.1.1",
     "cors": "^2.8.5",
