@@ -155,7 +155,7 @@ export class LangChainService {
     try {
       logger.info('Raw AI response (first 1000 chars)', { content: content.substring(0, 1000) });
       
-      let jsonStr = this.extractJSON(content);
+      const jsonStr = this.extractJSON(content);
       if (!jsonStr) {
         logger.error('Failed to extract JSON from response', { content });
         throw new Error('No valid JSON found in response');
@@ -165,8 +165,11 @@ export class LangChainService {
       
       const parsedSchema = JSON.parse(jsonStr);
       
+      // Normalize the schema to handle unsupported field types and missing required fields
+      const normalizedSchema = this.normalizeSchema(parsedSchema);
+      
       const formSchemaValidator = this.getFormSchema();
-      const validatedSchema = formSchemaValidator.parse(parsedSchema);
+      const validatedSchema = formSchemaValidator.parse(normalizedSchema);
 
       const sanitizedSchema = Sanitizer.sanitizeObject(validatedSchema);
 
@@ -198,6 +201,44 @@ export class LangChainService {
   }
 
   /**
+   * Normalize schema to handle unsupported field types and missing required fields
+   * This provides a defensive layer against AI models generating invalid field types
+   */
+  private normalizeSchema(schema: Record<string, unknown>): Record<string, unknown> {
+    const allowedTypes = ['text', 'email', 'textarea', 'select', 'checkbox', 'radio', 'date', 'file', 'password'] as const;
+    
+    if (!schema.fields || !Array.isArray(schema.fields)) {
+      return schema;
+    }
+    
+    const normalizedFields = schema.fields.map((field: Record<string, unknown>, index: number) => {
+      const normalized = { ...field };
+      
+      // Normalize type: coerce unsupported types to 'text'
+      if (typeof normalized.type !== 'string' || !allowedTypes.includes(normalized.type as typeof allowedTypes[number])) {
+        logger.warn('Unsupported field type from AI, coercing to text', {
+          index,
+          fieldName: normalized.name,
+          originalType: normalized.type
+        });
+        normalized.type = 'text';
+      }
+      
+      // Normalize required: ensure it's a boolean, default to false
+      if (typeof normalized.required !== 'boolean') {
+        normalized.required = false;
+      }
+      
+      return normalized;
+    });
+    
+    return {
+      ...schema,
+      fields: normalizedFields
+    };
+  }
+
+  /**
    * Build prompt for Hugging Face model
    */
   private buildPrompt(
@@ -214,12 +255,12 @@ Requirements:
 1. Create appropriate field types for the described form
 2. Add helpful labels and placeholders
 3. Include validation rules where appropriate (minLength, maxLength, pattern, etc.)
-4. Make required fields explicit
+4. Make required fields explicit (always include "required": true or "required": false for every field)
 5. Add help text for complex fields
 6. Use conditional logic if fields depend on each other
 7. Ensure accessibility (clear labels, help text)
 8. For select fields, provide reasonable options
-9. Use appropriate field types (email for emails, date for dates, password for passwords, etc.)
+9. IMPORTANT: Use ONLY these exact field types: text, email, password, textarea, select, checkbox, radio, date, file. Do NOT use any other types like number, time, tel, url, range, etc. For time-of-day fields, use "text" type with a placeholder like "HH:MM". For phone numbers, use "text" type.
 10. Keep field names lowercase with underscores (snake_case)
 11. VERY IMPORTANT: When the user's description contains a concrete value for a field (like names, dates, cities, hotel names, flight numbers, email addresses, phone numbers, amounts, etc.), you MUST set that value in the field's "defaultValue" property so the form is pre-filled with the user's data. Extract ALL available data from the description and populate the corresponding fields. If there is no clear value for a field, omit "defaultValue" for that field.
 
