@@ -94,28 +94,51 @@ function displayGeneratedForm(schema, isRealAI = false) {
     const resultDiv = document.getElementById('result');
     const aiMode = isRealAI ? '🤖 AI-Generated' : '📝 Demo Mode';
     
+    // Helper function to escape HTML attributes to prevent XSS
+    function escapeAttr(str) {
+        if (str === null || str === undefined) return '';
+        return String(str)
+            .replace(/&/g, '&amp;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+    }
+    
     let fieldsHtml = '';
     schema.fields.forEach(field => {
         const required = field.required ? '<span class="required">*</span>' : '';
-        const placeholder = field.placeholder ? `placeholder="${field.placeholder}"` : '';
+        const placeholder = field.placeholder ? `placeholder="${escapeAttr(field.placeholder)}"` : '';
+        const defaultValue = field.defaultValue !== undefined && field.defaultValue !== null ? field.defaultValue : '';
+        const escapedDefaultValue = escapeAttr(defaultValue);
         
         let inputHtml = '';
         if (field.type === 'textarea') {
-            inputHtml = `<textarea ${placeholder}></textarea>`;
+            inputHtml = `<textarea ${placeholder}>${escapeAttr(defaultValue)}</textarea>`;
         } else if (field.type === 'select') {
-            const options = field.options.map(opt => 
-                `<option value="${opt.value}">${opt.label}</option>`
-            ).join('');
+            const options = field.options ? field.options.map(opt => {
+                const selected = defaultValue == opt.value ? ' selected' : '';
+                return `<option value="${escapeAttr(opt.value)}"${selected}>${escapeAttr(opt.label)}</option>`;
+            }).join('') : '';
             inputHtml = `<select><option value="">Select...</option>${options}</select>`;
         } else if (field.type === 'checkbox') {
-            inputHtml = `<input type="checkbox">`;
+            const checked = defaultValue ? ' checked' : '';
+            inputHtml = `<input type="checkbox"${checked}>`;
+        } else if (field.type === 'radio' && field.options) {
+            inputHtml = field.options.map(opt => {
+                const checked = defaultValue == opt.value ? ' checked' : '';
+                return `<label style="display: inline-block; margin-right: 15px;">
+                    <input type="radio" name="${escapeAttr(field.name)}" value="${escapeAttr(opt.value)}"${checked}>
+                    ${escapeAttr(opt.label)}
+                </label>`;
+            }).join('');
         } else {
-            inputHtml = `<input type="${field.type}" ${placeholder}>`;
+            inputHtml = `<input type="${field.type}" ${placeholder} value="${escapedDefaultValue}">`;
         }
 
         fieldsHtml += `
             <div class="form-field">
-                <label>${field.label}${required}</label>
+                <label>${escapeAttr(field.label)}${required}</label>
                 ${inputHtml}
             </div>
         `;
