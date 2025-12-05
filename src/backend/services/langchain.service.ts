@@ -10,7 +10,7 @@ import { EmulatedAIService } from './emulated-ai.service';
  */
 export class LangChainService {
   private hf: InferenceClient | null = null;
-  private readonly model: string = 'openai/gpt-oss-120b:groq';
+  private readonly model: string = 'agentica-org/DeepCoder-14B-Preview:featherless-ai';
   private readonly maxRetries: number = 3;
   private readonly baseDelay: number = 1000;
   private emulatedAI: EmulatedAIService;
