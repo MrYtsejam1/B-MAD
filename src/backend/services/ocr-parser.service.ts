@@ -98,7 +98,7 @@ export class OCRParserService {
     };
   }
 
-  private parseCurrency(text: string, overallConfidence: number, threshold: number): FieldData | undefined {
+  private parseCurrency(text: string, overallConfidence: number, _threshold: number): FieldData | undefined {
     const currencyPatterns = [
       { pattern: /\$|USD/i, currency: 'USD' },
       { pattern: /€|EUR/i, currency: 'EUR' },
@@ -126,7 +126,7 @@ export class OCRParserService {
     };
   }
 
-  private parseCategory(text: string, vendor: string | undefined, overallConfidence: number, threshold: number): FieldData | undefined {
+  private parseCategory(text: string, vendor: string | undefined, overallConfidence: number, _threshold: number): FieldData | undefined {
     const lowerText = text.toLowerCase();
     const lowerVendor = vendor?.toLowerCase() || '';
 
