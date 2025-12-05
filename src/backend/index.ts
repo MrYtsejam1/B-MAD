@@ -10,7 +10,8 @@ dotenv.config();
 
 const app: Application = express();
 const PORT = Number(process.env.PORT) || 3000;
-\n// Trust proxy - required when behind reverse proxy (Render, Heroku, etc.)
+
+// Trust proxy - required when behind reverse proxy (Render, Heroku, etc.)
 app.set('trust proxy', 1);
 
 app.use(helmet({
