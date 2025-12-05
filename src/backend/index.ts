@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import formRoutes from './routes/form.routes';
 import sseRoutes from './routes/sse.routes';
+import componentRoutes from './routes/component.routes';
 
 dotenv.config();
 
@@ -52,6 +53,7 @@ app.use(express.static('dist/public'));
 
 app.use('/api/v1/forms', formRoutes);
 app.use('/api/v1', sseRoutes);
+app.use('/api/v1', componentRoutes);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err.stack);

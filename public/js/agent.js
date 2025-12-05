@@ -160,13 +160,6 @@ class AgentUI {
 
             case 'complete':
                 this.addLogEntry('agent', '✅ Complete!');
-                if (data.mode === 'web_component' && data.component) {
-                    this.displayWebComponent(data.component);
-                } else if (data.schema) {
-                    this.displayForm(data.schema);
-                } else if (data.formSchema) {
-                    this.displayForm(data.formSchema);
-                }
                 break;
 
             case 'result':
@@ -292,7 +285,7 @@ class AgentUI {
         }
     }
 
-    displayWebComponent(componentData) {
+    async displayWebComponent(componentData) {
         const agentResult = document.getElementById('agentResult');
         
         this.addLogEntry('system', '🎨 Loading web component...');
@@ -303,12 +296,46 @@ class AgentUI {
                 <div id="componentContainer" style="margin-top: 20px;"></div>
             `;
 
-            const script = document.createElement('script');
-            script.textContent = componentData.javascript;
-            document.body.appendChild(script);
+            const selector = componentData.selector || 'generated-form-component';
+            
+            if (componentData.javascriptUrl) {
+                const script = document.createElement('script');
+                script.src = componentData.javascriptUrl;
+                script.async = false;
+                
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Component loading timeout'));
+                    }, 5000);
+                    
+                    script.onload = async () => {
+                        try {
+                            await customElements.whenDefined(selector);
+                            clearTimeout(timeout);
+                            resolve();
+                        } catch (err) {
+                            clearTimeout(timeout);
+                            reject(err);
+                        }
+                    };
+                    
+                    script.onerror = () => {
+                        clearTimeout(timeout);
+                        reject(new Error('Failed to load component script'));
+                    };
+                    
+                    document.body.appendChild(script);
+                });
+            } else if (componentData.javascript) {
+                const script = document.createElement('script');
+                script.textContent = componentData.javascript;
+                document.body.appendChild(script);
+                
+                await customElements.whenDefined(selector);
+            }
 
             const container = document.getElementById('componentContainer');
-            const component = document.createElement(componentData.selector || 'generated-form-component');
+            const component = document.createElement(selector);
             
             component.addEventListener('formSubmit', (e) => {
                 console.log('Form submitted from web component:', e.detail);
@@ -323,10 +350,9 @@ class AgentUI {
             this.addLogEntry('error', 'Failed to load web component: ' + error.message);
             
             agentResult.innerHTML = `
-                <div class="error">❌ Failed to load web component</div>
+                <div class="error">❌ Failed to load web component: ${this.escapeHtml(error.message)}</div>
                 <div class="demo-section" style="margin-top: 20px;">
-                    <h3>Component Code</h3>
-                    <div class="code-block">${this.escapeHtml(componentData.javascript)}</div>
+                    <p>The component could not be loaded. This may be due to Content Security Policy restrictions.</p>
                 </div>
             `;
         }
