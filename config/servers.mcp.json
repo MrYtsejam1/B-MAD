@@ -1,0 +1,61 @@
+{
+  "servers": [
+    {
+      "id": "invoice",
+      "name": "Invoice Submission",
+      "description": "Submit and track expense invoices",
+      "mode": "mock",
+      "baseUrl": "https://api.company.com/invoices",
+      "mockBaseUrl": "/mock/invoices",
+      "auth": {
+        "type": "none"
+      },
+      "operations": [
+        {
+          "id": "submit",
+          "method": "POST",
+          "path": "/submit",
+          "inputSchema": "invoice-submit.request.json",
+          "outputSchema": "invoice-submit.response.json",
+          "description": "Submit a new invoice for approval"
+        },
+        {
+          "id": "status",
+          "method": "GET",
+          "path": "/status/:id",
+          "outputSchema": "invoice-status.response.json",
+          "description": "Get invoice status"
+        }
+      ],
+      "workflow": {
+        "steps": ["DRAFT", "SUBMITTED", "MANAGER_APPROVED", "FINANCE_APPROVED", "REIMBURSED"],
+        "requiredFields": ["date", "amount", "currency", "purpose", "category"]
+      }
+    },
+    {
+      "id": "travel",
+      "name": "Travel Booking",
+      "description": "Book business travel (flights, hotels, etc.)",
+      "mode": "mock",
+      "baseUrl": "https://api.company.com/travel",
+      "mockBaseUrl": "/mock/travel",
+      "auth": {
+        "type": "none"
+      },
+      "operations": [
+        {
+          "id": "book",
+          "method": "POST",
+          "path": "/book",
+          "inputSchema": "travel-book.request.json",
+          "outputSchema": "travel-book.response.json",
+          "description": "Create a travel booking"
+        }
+      ],
+      "workflow": {
+        "steps": ["DRAFT", "SUBMITTED", "APPROVED", "BOOKED"],
+        "requiredFields": ["destination", "startDate", "endDate", "travelers"]
+      }
+    }
+  ]
+}
