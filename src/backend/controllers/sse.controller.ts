@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { LangChainAgentService } from '../services/langchain-agent.service';
 import { AgentEvent } from '../models/agent.model';
+import { componentController } from './component.controller';
 
 export class SSEController {
   private agent: LangChainAgentService;
@@ -42,6 +43,14 @@ export class SSEController {
           this.sendEvent(res, event.type, event.data);
         }
       );
+
+      if (result.mode === 'web_component' && result.component) {
+        const { hash, javascript } = result.component;
+        componentController.storeComponent(hash, javascript);
+        
+        result.component.javascriptUrl = `/api/v1/components/${hash}.js`;
+        delete result.component.javascript; // Remove inline JS from response
+      }
 
       this.sendEvent(res, 'result', result);
       
