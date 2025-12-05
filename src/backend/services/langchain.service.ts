@@ -502,6 +502,9 @@ Return ONLY the JSON object, no additional text or explanation. Do not include y
       // Strip JavaScript-style comments (// and /* */) that AI models sometimes include
       jsonStr = this.stripJsonComments(jsonStr);
       
+      // Strip JavaScript-style comments (// and /* */) that AI models sometimes include
+      jsonStr = this.stripJsonComments(jsonStr);
+      
       jsonStr = jsonStr.replace(/\.\.\./g, '');
       jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
       jsonStr = jsonStr.replace(/\\'/g, "'");
