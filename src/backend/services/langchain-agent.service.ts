@@ -13,6 +13,8 @@ export class LangChainAgentService {
     fallback: 'ZHUI/GLM-4-32B-0414:featherless-ai',
   };
 
+  private initialized: boolean = false;
+
   constructor() {
     const hfToken = process.env.HF_TOKEN || 'demo_key_not_configured';
     this.hf = new HfInference(hfToken);
@@ -20,8 +22,17 @@ export class LangChainAgentService {
     this.outputMode = new OutputModeService();
   }
 
+  private async ensureInitialized(): Promise<void> {
+    if (!this.initialized) {
+      await this.tools.initialize();
+      this.initialized = true;
+    }
+  }
+
   async processRequest(request: AgentRequest, eventCallback?: (event: AgentEvent) => void): Promise<AgentResponse> {
     try {
+      await this.ensureInitialized();
+      
       this.emitEvent(eventCallback, 'analyzing', { message: 'Analyzing your request...' });
 
       const intent = await this.classifyIntent(request.userInput);
