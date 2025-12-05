@@ -10,7 +10,12 @@ import { EmulatedAIService } from './emulated-ai.service';
  */
 export class LangChainService {
   private hf: InferenceClient | null = null;
-  private readonly model: string = 'agentica-org/DeepCoder-14B-Preview:featherless-ai';
+  private readonly availableModels: string[] = [
+    'Qwen/Qwen2.5-Coder',
+    'agentica-org/DeepCoder-14B-Preview:featherless-ai',
+    'THUDM/GLM-4-32B-0414'
+  ];
+  private readonly defaultModel: string = 'agentica-org/DeepCoder-14B-Preview:featherless-ai';
   private readonly maxRetries: number = 3;
   private readonly baseDelay: number = 1000;
   private emulatedAI: EmulatedAIService;
@@ -21,7 +26,10 @@ export class LangChainService {
     
     if (token && token !== 'demo_key_not_configured') {
       this.hf = new InferenceClient(token);
-      logger.info('Hugging Face Inference client initialized', { model: this.model });
+      logger.info('Hugging Face Inference client initialized', { 
+        defaultModel: this.defaultModel,
+        availableModels: this.availableModels 
+      });
     } else {
       logger.info('No HF_TOKEN configured, will use emulated AI');
     }
@@ -88,14 +96,25 @@ export class LangChainService {
         return this.emulatedAI.generateFormSchema(description);
       }
 
-      logger.info('Starting form generation with Hugging Face', { description, options, model: this.model });
+      const selectedModel = options?.model || this.defaultModel;
+      
+      if (!this.availableModels.includes(selectedModel)) {
+        logger.warn('Invalid model selected, using default', { 
+          selectedModel, 
+          defaultModel: this.defaultModel 
+        });
+      }
+
+      const model = this.availableModels.includes(selectedModel) ? selectedModel : this.defaultModel;
+
+      logger.info('Starting form generation with Hugging Face', { description, options, model });
 
       const prompt = this.buildPrompt(description, options);
 
       try {
         const response = await this.retryWithBackoff(async () => {
           return await this.hf!.chatCompletion({
-            model: this.model,
+            model: model,
             messages: [
               {
                 role: 'user',
@@ -108,11 +127,11 @@ export class LangChainService {
         });
 
         const content = response.choices[0]?.message?.content || '';
-        return await this.processAIResponse(content, this.model, startTime);
+        return await this.processAIResponse(content, model, startTime);
         
       } catch (error: any) {
         logger.warn('Hugging Face model failed, falling back to emulated AI', { 
-          model: this.model, 
+          model: model, 
           error: error.message 
         });
         return this.emulatedAI.generateFormSchema(description);

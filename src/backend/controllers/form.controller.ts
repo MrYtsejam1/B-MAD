@@ -18,9 +18,14 @@ export class FormController {
     const startTime = Date.now();
 
     try {
-      const { description, options } = req.body;
+      const { description, options, model } = req.body;
       const userId = req.user?.userId;
       const forceRealAI = req.headers['x-force-real-ai'] === 'true';
+      
+      const generationOptions: GenerationOptions = {
+        ...options,
+        model: model
+      };
 
       const hasHFToken = !!process.env.HF_TOKEN && process.env.HF_TOKEN !== 'demo_key_not_configured';
       
@@ -131,13 +136,14 @@ export class FormController {
       logger.info('Form generation requested', {
         userId,
         descriptionLength: description.length,
-        options
+        options: generationOptions,
+        model: model
       });
 
       const langChainService = new LangChainService();
       const schema = await langChainService.generateFormSchema(
         description,
-        options as GenerationOptions
+        generationOptions
       );
 
       const duration = Date.now() - startTime;
