@@ -275,30 +275,18 @@ Generate a complete, valid JSON form schema with this structure:
   "description": "Optional description",
   "fields": [
     {
-      "name": "traveler_first_name",
-      "type": "text",
-      "label": "Your First Name",
-      "required": true
-    },
-    {
-      "name": "companion_name",
-      "type": "text",
-      "label": "Companion Name",
-      "defaultValue": "Name of companion if mentioned",
-      "required": false
-    },
-    {
-      "name": "departure_city",
-      "type": "text",
-      "label": "Departure City",
-      "defaultValue": "Pre-filled from description",
-      "required": true
-    },
-    {
-      "name": "manager_name",
-      "type": "text",
-      "label": "Manager Name",
-      "required": false
+      "name": "field_name",
+      "type": "text|email|password|textarea|select|checkbox|radio|date|file",
+      "label": "Field Label",
+      "placeholder": "Optional placeholder",
+      "required": true|false,
+      "defaultValue": "Pre-filled value extracted from user description (if available)",
+      "validation": {
+        "minLength": 3,
+        "maxLength": 50,
+        "pattern": "regex pattern"
+      },
+      "options": [{"value": "val", "label": "Label"}]
     }
   ],
   "layout": "vertical|horizontal|grid",
