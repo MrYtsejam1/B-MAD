@@ -348,6 +348,79 @@ Return ONLY the JSON object, no additional text or explanation. Do not include y
   }
 
   /**
+   * Strip JavaScript-style comments from JSON string while preserving comments inside string values
+   * This handles cases where AI models include comments like "// Today's date" in JSON output
+   */
+  private stripJsonComments(input: string): string {
+    let result = '';
+    let inString = false;
+    let stringChar: string | null = null;
+    let inSingleLineComment = false;
+    let inMultiLineComment = false;
+    let prevChar = '';
+
+    for (let i = 0; i < input.length; i++) {
+      const char = input[i];
+      const nextChar = i + 1 < input.length ? input[i + 1] : '';
+
+      // Handle single-line comments
+      if (inSingleLineComment) {
+        if (char === '\n' || char === '\r') {
+          inSingleLineComment = false;
+          result += char;
+        }
+        continue;
+      }
+
+      // Handle multi-line comments
+      if (inMultiLineComment) {
+        if (char === '*' && nextChar === '/') {
+          inMultiLineComment = false;
+          i++; // skip '/'
+        }
+        continue;
+      }
+
+      // Detect start of single-line comment (only outside strings)
+      if (!inString && char === '/' && nextChar === '/') {
+        inSingleLineComment = true;
+        i++; // skip second '/'
+        continue;
+      }
+
+      // Detect start of multi-line comment (only outside strings)
+      if (!inString && char === '/' && nextChar === '*') {
+        inMultiLineComment = true;
+        i++; // skip '*'
+        continue;
+      }
+
+      // Detect start of string
+      if (!inString && (char === '"' || char === "'")) {
+        inString = true;
+        stringChar = char;
+        result += char;
+        prevChar = char;
+        continue;
+      }
+
+      // Detect end of string (handle escaped quotes)
+      if (inString && char === stringChar && prevChar !== '\\') {
+        inString = false;
+        stringChar = null;
+        result += char;
+        prevChar = char;
+        continue;
+      }
+
+      result += char;
+      prevChar = char;
+    }
+
+    return result;
+  }
+
+  /**
    * Extract JSON object from AI response text
    * Handles various AI response formats including code blocks and extra text
    */
@@ -383,9 +456,13 @@ Return ONLY the JSON object, no additional text or explanation. Do not include y
     for (let i = jsonObjects.length - 1; i >= 0; i--) {
       let jsonStr = jsonObjects[i];
       
+      // Strip JavaScript-style comments (// and /* */) that AI models sometimes include
+      jsonStr = this.stripJsonComments(jsonStr);
+      
       jsonStr = jsonStr.replace(/\.\.\./g, '');
       jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
       jsonStr = jsonStr.replace(/\\'/g, "'");
+      // eslint-disable-next-line no-control-regex
       jsonStr = jsonStr.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
       
       try {
