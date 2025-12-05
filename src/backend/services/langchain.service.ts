@@ -3,24 +3,28 @@ import { z } from 'zod';
 import { FormSchema, GenerationOptions } from '../models/form-schema.model';
 import { Sanitizer } from '../utils/sanitizer';
 import { logger } from '../utils/logger';
+import { EmulatedAIService } from './emulated-ai.service';
 
 /**
  * Google Gemini service for AI-powered form generation
  */
 export class LangChainService {
   private genAI: GoogleGenerativeAI;
-  private readonly model: string = 'gemini-3-pro-preview';
+  private readonly models: string[] = ['gemini-3-pro-preview', 'gemini-1.5-pro', 'gemini-1.5-flash'];
   private readonly maxRetries: number = 3;
   private readonly baseDelay: number = 1000;
+  private emulatedAI: EmulatedAIService;
 
   constructor() {
     const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error('GEMINI_API_KEY environment variable is required');
-    }
+    this.emulatedAI = new EmulatedAIService();
     
-    this.genAI = new GoogleGenerativeAI(apiKey);
-    logger.info('Google Gemini client initialized', { model: this.model });
+    if (apiKey && apiKey !== 'demo_key_not_configured') {
+      this.genAI = new GoogleGenerativeAI(apiKey);
+      logger.info('Google Gemini client initialized', { models: this.models });
+    } else {
+      logger.info('No Gemini API key configured, will use emulated AI');
+    }
   }
 
   /**
@@ -75,22 +79,65 @@ export class LangChainService {
     const startTime = Date.now();
 
     try {
-      logger.info('Starting form generation with Google Gemini', { description, options });
-
       if (!description || description.trim().length < 10) {
         throw new Error('Description must be at least 10 characters');
       }
 
+      if (!this.genAI) {
+        logger.info('Using emulated AI (no API key configured)');
+        return this.emulatedAI.generateFormSchema(description);
+      }
+
+      logger.info('Starting form generation with Google Gemini', { description, options });
+
       const prompt = this.buildPrompt(description, options);
 
-      const response = await this.retryWithBackoff(async () => {
-        const model = this.genAI.getGenerativeModel({ model: this.model });
-        const result = await model.generateContent(prompt);
-        return result.response;
-      });
+      let lastError: Error | null = null;
+      for (const modelName of this.models) {
+        try {
+          logger.info('Trying Gemini model', { model: modelName });
+          
+          const response = await this.retryWithBackoff(async () => {
+            const model = this.genAI.getGenerativeModel({ model: modelName });
+            const result = await model.generateContent(prompt);
+            return result.response;
+          });
 
-      const content = response.text() || '';
+          const content = response.text() || '';
+          
+          return await this.processAIResponse(content, modelName, startTime);
+          
+        } catch (error: any) {
+          lastError = error;
+          logger.warn('Gemini model failed, trying next', { 
+            model: modelName, 
+            error: error.message 
+          });
+          continue;
+        }
+      }
+
+      logger.warn('All Gemini models failed, falling back to emulated AI', { 
+        error: lastError?.message 
+      });
+      return this.emulatedAI.generateFormSchema(description);
+
+    } catch (error: any) {
+      const duration = Date.now() - startTime;
+      logger.error('Form generation failed completely', { 
+        description, 
+        duration,
+        error: error.message,
+        stack: error.stack
+      });
       
+      logger.info('Using emulated AI as last resort');
+      return this.emulatedAI.generateFormSchema(description);
+    }
+  }
+
+  private async processAIResponse(content: string, modelName: string, startTime: number): Promise<FormSchema> {
+    try {
       logger.info('Raw AI response (first 1000 chars)', { content: content.substring(0, 1000) });
       
       let jsonStr = this.extractJSON(content);
@@ -115,7 +162,7 @@ export class LangChainService {
         theme: sanitizedSchema.theme || 'light',
         metadata: {
           generatedAt: new Date().toISOString(),
-          model: this.model,
+          model: modelName,
           cached: false,
           version: '1.0'
         }
@@ -124,21 +171,14 @@ export class LangChainService {
       const duration = Date.now() - startTime;
       logger.info('Form generation completed', { 
         formId: schema.id, 
+        model: modelName,
         duration,
         fieldCount: schema.fields.length 
       });
 
       return schema;
-
     } catch (error: any) {
-      const duration = Date.now() - startTime;
-      logger.error('Form generation failed', { 
-        description, 
-        duration,
-        error: error.message,
-        stack: error.stack
-      });
-      throw new Error(`Failed to generate form schema: ${error.message}`);
+      throw new Error(`Failed to process AI response: ${error.message}`);
     }
   }
 
