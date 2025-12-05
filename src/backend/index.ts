@@ -4,13 +4,23 @@ import helmet from 'helmet';
 import dotenv from 'dotenv';
 import rateLimit from 'express-rate-limit';
 import formRoutes from './routes/form.routes';
+import sseRoutes from './routes/sse.routes';
 
 dotenv.config();
 
 const app: Application = express();
 const PORT = Number(process.env.PORT) || 3000;
 
-app.use(helmet());
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      connectSrc: ["'self'"],
+    },
+  },
+}));
 app.use(cors({
   origin: process.env.CORS_ORIGIN || 'http://localhost:4200'
 }));
@@ -27,9 +37,18 @@ app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
+app.get('/version', (_req, res) => {
+  res.json({ 
+    version: process.env.GIT_COMMIT || 'dev',
+    timestamp: new Date().toISOString(),
+    sprints: '1-5 (81 story points)'
+  });
+});
+
 app.use(express.static('dist/public'));
 
 app.use('/api/v1/forms', formRoutes);
+app.use('/api/v1', sseRoutes);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err.stack);
