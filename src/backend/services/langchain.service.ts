@@ -445,29 +445,58 @@ Return ONLY the JSON object, no additional text or explanation. Do not include y
 
   /**
    * Extract JSON object from AI response text
-   * Handles various AI response formats including code blocks and extra text
+   * Handles various AI response formats including code blocks, thinking blocks, and extra text
    */
   private extractJSON(content: string): string | null {
+    // Remove chain-of-thought / thinking blocks that may contain brace-like patterns
+    content = content.replace(/<think>[\s\S]*?<\/think>/g, '');
     content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '');
     
     const jsonObjects: string[] = [];
     let braceCount = 0;
     let startIndex = -1;
+    let inString = false;
+    let stringChar: string | null = null;
+    let escape = false;
     
+    // String-aware brace counting to handle braces inside strings (like regex patterns)
     for (let i = 0; i < content.length; i++) {
       const char = content[i];
       
+      // Handle string context
+      if (inString) {
+        if (escape) {
+          escape = false;
+        } else if (char === '\\') {
+          escape = true;
+        } else if (char === stringChar) {
+          inString = false;
+          stringChar = null;
+        }
+        continue;
+      }
+      
+      // Detect start of string
+      if (char === '"' || char === "'") {
+        inString = true;
+        stringChar = char;
+        continue;
+      }
+      
+      // Count braces only outside of strings
       if (char === '{') {
         if (braceCount === 0) {
           startIndex = i;
         }
         braceCount++;
       } else if (char === '}') {
-        braceCount--;
-        if (braceCount === 0 && startIndex !== -1) {
-          const jsonStr = content.substring(startIndex, i + 1);
-          jsonObjects.push(jsonStr);
-          startIndex = -1;
+        if (braceCount > 0) {
+          braceCount--;
+          if (braceCount === 0 && startIndex !== -1) {
+            const jsonStr = content.substring(startIndex, i + 1);
+            jsonObjects.push(jsonStr);
+            startIndex = -1;
+          }
         }
       }
     }
@@ -476,8 +505,11 @@ Return ONLY the JSON object, no additional text or explanation. Do not include y
       return null;
     }
     
-    for (let i = jsonObjects.length - 1; i >= 0; i--) {
-      let jsonStr = jsonObjects[i];
+    // Sort by length descending - prefer larger objects (full schema) over fragments
+    const candidates = [...jsonObjects].sort((a, b) => b.length - a.length);
+    
+    for (const candidate of candidates) {
+      let jsonStr = candidate;
       
       // Strip JavaScript-style comments (// and /* */) that AI models sometimes include
       jsonStr = this.stripJsonComments(jsonStr);
