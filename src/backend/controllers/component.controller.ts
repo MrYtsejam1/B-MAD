@@ -4,9 +4,11 @@ export class ComponentController {
   private componentCache: Map<string, string> = new Map();
 
   storeComponent(hash: string, javascript: string): void {
+    console.log(`[ComponentController] Storing component with hash: ${hash}, size: ${javascript.length} bytes`);
     this.componentCache.set(hash, javascript);
     
     setTimeout(() => {
+      console.log(`[ComponentController] Expiring component with hash: ${hash}`);
       this.componentCache.delete(hash);
     }, 60 * 60 * 1000);
   }
