@@ -262,7 +262,12 @@ Requirements:
 8. For select fields, provide reasonable options
 9. IMPORTANT: Use ONLY these exact field types: text, email, password, textarea, select, checkbox, radio, date, file. Do NOT use any other types like number, time, tel, url, range, etc. For time-of-day fields, use "text" type with a placeholder like "HH:MM". For phone numbers, use "text" type.
 10. Keep field names lowercase with underscores (snake_case)
-11. VERY IMPORTANT: When the user's description contains a concrete value for a field (like names, dates, cities, hotel names, flight numbers, email addresses, phone numbers, amounts, etc.), you MUST set that value in the field's "defaultValue" property so the form is pre-filled with the user's data. Extract ALL available data from the description and populate the corresponding fields. If there is no clear value for a field, omit "defaultValue" for that field.
+11. VERY IMPORTANT - ROLE DISTINCTION: Distinguish clearly between the person filling out the form ("the user") and other people they mention:
+    a. The "user" is the person speaking in the description (using "I", "me", "my"). Assume the form is primarily for the user unless they explicitly say they are booking on behalf of someone else.
+    b. Only pre-fill personal fields for the user (like first_name, last_name, email, phone) when it is CLEAR that the value refers to the user themselves. If a name clearly belongs to someone else (e.g., "my coworker Yosi Yehuda", "my friend John", "my manager Dana"), do NOT use that as the user's own name.
+    c. When other people are mentioned (companions, coworkers, managers, approvers), create SEPARATE fields with clear prefixes, for example: companion_name, companion_email, manager_name, manager_email, approver_name. Pre-fill those fields with the mentioned values.
+    d. If there is ANY ambiguity about whether a value belongs to the user or someone else, do NOT pre-fill the user's personal fields. Leave them empty and let the user fill them in.
+12. VERY IMPORTANT - DATA EXTRACTION: When the user's description contains concrete values for non-personal fields (like dates, cities, hotel names, flight numbers, times, amounts), you MUST set those values in the field's "defaultValue" property. Trip details can always be pre-filled. Apply the role logic from requirement 11 for personal information.
 
 Generate a complete, valid JSON form schema with this structure:
 {
@@ -287,6 +292,12 @@ Generate a complete, valid JSON form schema with this structure:
   "layout": "vertical|horizontal|grid",
   "theme": "light|dark"
 }
+
+Field naming conventions:
+- User's own fields: first_name, last_name, email, phone (leave defaultValue empty unless user explicitly states their own name)
+- Companion fields: companion_name, companion_email, companion_phone
+- Manager fields: manager_name, manager_email
+- Trip details: departure_city, destination_city, departure_date, return_date, flight_number, hotel_name (always pre-fill these)
 
 Return ONLY the JSON object, no additional text or explanation. Do not include your reasoning or thinking process in the response.`;
   }
@@ -348,30 +359,132 @@ Return ONLY the JSON object, no additional text or explanation. Do not include y
   }
 
   /**
+   * Strip JavaScript-style comments from JSON string while preserving comments inside string values
+   * This handles cases where AI models include comments like "// Today's date" in JSON output
+   */
+  private stripJsonComments(input: string): string {
+    let result = '';
+    let inString = false;
+    let stringChar: string | null = null;
+    let inSingleLineComment = false;
+    let inMultiLineComment = false;
+    let prevChar = '';
+
+    for (let i = 0; i < input.length; i++) {
+      const char = input[i];
+      const nextChar = i + 1 < input.length ? input[i + 1] : '';
+
+      // Handle single-line comments
+      if (inSingleLineComment) {
+        if (char === '\n' || char === '\r') {
+          inSingleLineComment = false;
+          result += char;
+        }
+        continue;
+      }
+
+      // Handle multi-line comments
+      if (inMultiLineComment) {
+        if (char === '*' && nextChar === '/') {
+          inMultiLineComment = false;
+          i++; // skip '/'
+        }
+        continue;
+      }
+
+      // Detect start of single-line comment (only outside strings)
+      if (!inString && char === '/' && nextChar === '/') {
+        inSingleLineComment = true;
+        i++; // skip second '/'
+        continue;
+      }
+
+      // Detect start of multi-line comment (only outside strings)
+      if (!inString && char === '/' && nextChar === '*') {
+        inMultiLineComment = true;
+        i++; // skip '*'
+        continue;
+      }
+
+      // Detect start of string
+      if (!inString && (char === '"' || char === "'")) {
+        inString = true;
+        stringChar = char;
+        result += char;
+        prevChar = char;
+        continue;
+      }
+
+      // Detect end of string (handle escaped quotes)
+      if (inString && char === stringChar && prevChar !== '\\') {
+        inString = false;
+        stringChar = null;
+        result += char;
+        prevChar = char;
+        continue;
+      }
+
+      result += char;
+      prevChar = char;
+    }
+
+    return result;
+  }
+
+  /**
    * Extract JSON object from AI response text
-   * Handles various AI response formats including code blocks and extra text
+   * Handles various AI response formats including code blocks, thinking blocks, and extra text
    */
   private extractJSON(content: string): string | null {
+    // Remove chain-of-thought / thinking blocks that may contain brace-like patterns
+    content = content.replace(/<think>[\s\S]*?<\/think>/g, '');
     content = content.replace(/```json\s*/g, '').replace(/```\s*/g, '');
     
     const jsonObjects: string[] = [];
     let braceCount = 0;
     let startIndex = -1;
+    let inString = false;
+    let stringChar: string | null = null;
+    let escape = false;
     
+    // String-aware brace counting to handle braces inside strings (like regex patterns)
     for (let i = 0; i < content.length; i++) {
       const char = content[i];
       
+      // Handle string context
+      if (inString) {
+        if (escape) {
+          escape = false;
+        } else if (char === '\\') {
+          escape = true;
+        } else if (char === stringChar) {
+          inString = false;
+          stringChar = null;
+        }
+        continue;
+      }
+      
+      // Detect start of string
+      if (char === '"' || char === "'") {
+        inString = true;
+        stringChar = char;
+        continue;
+      }
+      
+      // Count braces only outside of strings
       if (char === '{') {
         if (braceCount === 0) {
           startIndex = i;
         }
         braceCount++;
       } else if (char === '}') {
-        braceCount--;
-        if (braceCount === 0 && startIndex !== -1) {
-          const jsonStr = content.substring(startIndex, i + 1);
-          jsonObjects.push(jsonStr);
-          startIndex = -1;
+        if (braceCount > 0) {
+          braceCount--;
+          if (braceCount === 0 && startIndex !== -1) {
+            const jsonStr = content.substring(startIndex, i + 1);
+            jsonObjects.push(jsonStr);
+            startIndex = -1;
+          }
         }
       }
     }
@@ -380,12 +493,19 @@ Return ONLY the JSON object, no additional text or explanation. Do not include y
       return null;
     }
     
-    for (let i = jsonObjects.length - 1; i >= 0; i--) {
-      let jsonStr = jsonObjects[i];
+    // Sort by length descending - prefer larger objects (full schema) over fragments
+    const candidates = [...jsonObjects].sort((a, b) => b.length - a.length);
+    
+    for (const candidate of candidates) {
+      let jsonStr = candidate;
+      
+      // Strip JavaScript-style comments (// and /* */) that AI models sometimes include
+      jsonStr = this.stripJsonComments(jsonStr);
       
       jsonStr = jsonStr.replace(/\.\.\./g, '');
       jsonStr = jsonStr.replace(/,(\s*[}\]])/g, '$1');
       jsonStr = jsonStr.replace(/\\'/g, "'");
+      // eslint-disable-next-line no-control-regex
       jsonStr = jsonStr.replace(/[\u0000-\u001F\u007F-\u009F]/g, '');
       
       try {
