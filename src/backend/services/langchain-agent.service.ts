@@ -36,8 +36,10 @@ export class LangChainAgentService {
       this.emitEvent(eventCallback, 'analyzing', { message: 'Analyzing your request...' });
 
       const intent = await this.classifyIntent(request.userInput);
+      console.log('[LangChainAgent] Detected intent:', intent);
       
       const complexity = this.detectComplexity(request.userInput, intent);
+      console.log('[LangChainAgent] Detected complexity:', complexity);
 
       const questions = complexity !== ComplexityLevel.SIMPLE 
         ? await this.generateQuestions(request.userInput, intent, complexity)
@@ -82,7 +84,15 @@ export class LangChainAgentService {
       return IntentType.INVOICE_SUBMISSION;
     }
 
+    if (userInput.includes('חשבונית') || userInput.includes('הוצאה') || userInput.includes('קבלה') || userInput.includes('החזר')) {
+      return IntentType.INVOICE_SUBMISSION;
+    }
+
     if (lowerInput.includes('travel') || lowerInput.includes('flight') || lowerInput.includes('hotel') || lowerInput.includes('trip')) {
+      return IntentType.TRAVEL_BOOKING;
+    }
+
+    if (userInput.includes('טיסה') || userInput.includes('מלון') || userInput.includes('נסיעה') || userInput.includes('תיירות')) {
       return IntentType.TRAVEL_BOOKING;
     }
 
@@ -125,12 +135,15 @@ Respond with only the category name, nothing else.`;
     const hasDateRange = /from .* to|between .* and/i.test(userInput);
     const hasMultipleSteps = /first|then|after|next/i.test(userInput);
 
-    if (wordCount < 10 && !hasMultipleEntities && intent !== IntentType.TRAVEL_BOOKING) {
-      return ComplexityLevel.SIMPLE;
+    if (intent === IntentType.INVOICE_SUBMISSION || intent === IntentType.TRAVEL_BOOKING) {
+      if (hasDateRange || hasMultipleSteps || hasMultipleEntities) {
+        return ComplexityLevel.COMPLEX;
+      }
+      return ComplexityLevel.MODERATE;
     }
 
-    if (intent === IntentType.TRAVEL_BOOKING || hasDateRange || hasMultipleSteps) {
-      return ComplexityLevel.COMPLEX;
+    if (wordCount < 10 && !hasMultipleEntities) {
+      return ComplexityLevel.SIMPLE;
     }
 
     return ComplexityLevel.MODERATE;
@@ -170,7 +183,7 @@ Respond with only the category name, nothing else.`;
       }
     }
 
-    if (complexity === ComplexityLevel.COMPLEX && intent === IntentType.TRAVEL_BOOKING) {
+    if (intent === IntentType.TRAVEL_BOOKING) {
       const extractedInfo = await this.extractTravelDetails(userInput);
       
       if (extractedInfo) {
@@ -184,6 +197,25 @@ Respond with only the category name, nothing else.`;
       } else {
         questions.push('I see you want to book travel. Could you confirm the key details?');
         questions.push('Any preferences for cabin class, baggage, or special requests?');
+      }
+      
+      return questions;
+    }
+
+    if (intent === IntentType.INVOICE_SUBMISSION) {
+      const extractedInfo = await this.extractInvoiceDetails(userInput);
+      
+      if (extractedInfo && (extractedInfo.date || extractedInfo.amount || extractedInfo.vendor)) {
+        questions.push(`I understand you want to submit an expense. Let me confirm the details:`);
+        questions.push(`📅 Date: ${extractedInfo.date || 'Not specified'}`);
+        questions.push(`💰 Amount: ${extractedInfo.amount || 'Not specified'} ${extractedInfo.currency || ''}`);
+        questions.push(`🏢 Vendor: ${extractedInfo.vendor || 'Not specified'}`);
+        questions.push(`📂 Category: ${extractedInfo.category || 'Not specified'}`);
+        questions.push(`📝 Purpose: ${extractedInfo.purpose || 'Not specified'}`);
+        questions.push(`Is this information correct? Any additional details or attachments?`);
+      } else {
+        questions.push('I see you want to submit an expense. Could you provide the key details?');
+        questions.push('What are the date, amount, vendor, and purpose of this expense?');
       }
       
       return questions;
@@ -226,6 +258,43 @@ Return ONLY the JSON object:`;
       return null;
     } catch (error) {
       console.error('[LangChainAgent] Failed to extract travel details:', error);
+      return null;
+    }
+  }
+
+  private async extractInvoiceDetails(userInput: string): Promise<any> {
+    try {
+      const prompt = `Extract expense/invoice details from the following text. Return ONLY a JSON object:
+{
+  "date": "expense date",
+  "amount": "amount value",
+  "currency": "currency code or symbol",
+  "vendor": "vendor/merchant name",
+  "category": "expense category (meals, travel, supplies, software, other)",
+  "purpose": "purpose or description"
+}
+
+Text: "${userInput}"
+
+Return ONLY the JSON object:`;
+
+      const response = await this.hf.chatCompletion({
+        model: this.models.generation,
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 300,
+        temperature: 0.2,
+      });
+
+      const content = response.choices[0]?.message?.content?.trim() || '';
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[0]);
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[LangChainAgent] Failed to extract invoice details:', error);
       return null;
     }
   }
