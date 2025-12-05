@@ -221,6 +221,7 @@ Requirements:
 8. For select fields, provide reasonable options
 9. Use appropriate field types (email for emails, date for dates, password for passwords, etc.)
 10. Keep field names lowercase with underscores (snake_case)
+11. VERY IMPORTANT: When the user's description contains a concrete value for a field (like names, dates, cities, hotel names, flight numbers, email addresses, phone numbers, amounts, etc.), you MUST set that value in the field's "defaultValue" property so the form is pre-filled with the user's data. Extract ALL available data from the description and populate the corresponding fields. If there is no clear value for a field, omit "defaultValue" for that field.
 
 Generate a complete, valid JSON form schema with this structure:
 {
@@ -233,6 +234,7 @@ Generate a complete, valid JSON form schema with this structure:
       "label": "Field Label",
       "placeholder": "Optional placeholder",
       "required": true|false,
+      "defaultValue": "Pre-filled value extracted from user description (if available)",
       "validation": {
         "minLength": 3,
         "maxLength": 50,
@@ -245,7 +247,7 @@ Generate a complete, valid JSON form schema with this structure:
   "theme": "light|dark"
 }
 
-Return ONLY the JSON object, no additional text or explanation.`;
+Return ONLY the JSON object, no additional text or explanation. Do not include your reasoning or thinking process in the response.`;
   }
 
   /**
