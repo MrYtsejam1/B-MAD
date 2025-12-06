@@ -50,31 +50,55 @@ export class OCRParserService {
   }
 
   private parseAmount(text: string, overallConfidence: number, threshold: number): FieldData | undefined {
-    // English patterns
-    const englishPatterns = [
-      /\b(?:total|amount|subtotal|sum)[:\s]*\$?\s*(\d+[,.]?\d*\.?\d{0,2})\b/gi,
-      /\b\$\s*(\d+[,.]?\d*\.?\d{0,2})\b/g,
-      /\b(\d+[,.]?\d*\.?\d{0,2})\s*(?:USD|EUR|GBP|CAD)\b/gi,
+    // Split text into lines for more precise matching
+    const lines = text.split('\n');
+    
+    // Hebrew labels for amount
+    const hebrewLabels = ['סה"כ לתשלום', 'סהכ לתשלום', 'סה"כ', 'סהכ', 'סכום', 'תשלום', 'מחיר', 'לתשלום'];
+    // English labels for amount
+    const englishLabels = ['total', 'amount', 'subtotal', 'sum', 'total due', 'amount due'];
+    
+    // First, try to find amount on lines containing known labels
+    for (const line of lines) {
+      const lineLower = line.toLowerCase();
+      const hasHebrewLabel = hebrewLabels.some(label => line.includes(label));
+      const hasEnglishLabel = englishLabels.some(label => lineLower.includes(label));
+      
+      if (hasHebrewLabel || hasEnglishLabel) {
+        // Extract amount from this specific line - look for number pattern
+        // Match numbers like: 2164.50, 2,164.50, 1000, etc.
+        const amountMatch = line.match(/(\d{1,3}(?:[,]\d{3})*(?:[.]\d{1,2})?|\d+(?:[.]\d{1,2})?)/);
+        if (amountMatch) {
+          const amountStr = amountMatch[1].replace(/,/g, '');
+          const amount = parseFloat(amountStr);
+          
+          if (!isNaN(amount) && amount > 0 && amount < 1000000) { // Sanity check: less than 1M
+            const confidence = overallConfidence / 100;
+            return {
+              value: amount.toFixed(2),
+              confidence,
+              needsReview: confidence < threshold,
+            };
+          }
+        }
+      }
+    }
+    
+    // Fallback: try currency symbol patterns
+    const currencyPatterns = [
+      /₪\s*(\d{1,3}(?:[,]\d{3})*(?:[.]\d{1,2})?|\d+(?:[.]\d{1,2})?)/g,
+      /\$\s*(\d{1,3}(?:[,]\d{3})*(?:[.]\d{1,2})?|\d+(?:[.]\d{1,2})?)/g,
+      /(\d{1,3}(?:[,]\d{3})*(?:[.]\d{1,2})?|\d+(?:[.]\d{1,2})?)\s*(?:₪|ש"ח|שקל|ILS|NIS|USD|EUR)/gi,
     ];
 
-    // Hebrew patterns for amount: סכום, תשלום, סה"כ לתשלום, סה"כ, מחיר
-    const hebrewPatterns = [
-      /(?:סכום|תשלום|סה"כ לתשלום|סה"כ|סהכ לתשלום|סהכ|מחיר)[:\s]*₪?\s*(\d+[,.]?\d*\.?\d{0,2})/gi,
-      /₪\s*(\d+[,.]?\d*\.?\d{0,2})/g,
-      /(\d+[,.]?\d*\.?\d{0,2})\s*(?:₪|ש"ח|שקל|שקלים|ILS|NIS)/gi,
-    ];
-
-    const allPatterns = [...englishPatterns, ...hebrewPatterns];
-
-    for (const pattern of allPatterns) {
+    for (const pattern of currencyPatterns) {
       const match = pattern.exec(text);
       if (match) {
         const amountStr = match[1].replace(/,/g, '');
         const amount = parseFloat(amountStr);
 
-        if (!isNaN(amount) && amount > 0) {
+        if (!isNaN(amount) && amount > 0 && amount < 1000000) {
           const confidence = overallConfidence / 100;
-
           return {
             value: amount.toFixed(2),
             confidence,
@@ -88,24 +112,45 @@ export class OCRParserService {
   }
 
   private parseVendor(text: string, overallConfidence: number, threshold: number): FieldData | undefined {
-    const lines = text.split('\n').filter(line => line.trim().length > 0);
+    const lines = text
+      .split('\n')
+      .map(l => l.trim())
+      .filter(l => l.length > 0);
     
     if (lines.length === 0) {
       return undefined;
     }
 
-    const vendorLine = lines[0].trim();
-    
-    if (vendorLine.length < 3 || vendorLine.length > 100) {
-      return undefined;
-    }
+    // Find a candidate line that looks like a vendor name
+    // Skip lines that are clearly headers, dates, or invoice metadata
+    const candidate = lines.find(line => {
+      // Length constraints - vendor names are typically 3-80 characters
+      if (line.length < 3 || line.length > 80) return false;
 
+      // Skip obvious headers / boilerplate in Hebrew and English
+      if (/(חשבונית|קבלה|invoice|receipt|tax|סה"כ|סהכ|תאריך|date|total|amount|סכום|תשלום|מחיר)/i.test(line)) return false;
+
+      // Skip lines that look like dates or times
+      if (/\d{1,2}[\/\-]\d{1,2}[\/\-]\d{2,4}/.test(line)) return false;
+      if (/\b\d{1,2}:\d{2}\b/.test(line)) return false;
+
+      // Skip lines that are mostly numbers (likely amounts or IDs)
+      const digitRatio = (line.match(/\d/g) || []).length / line.length;
+      if (digitRatio > 0.5) return false;
+
+      // Skip lines with "להורדה" (download), "PM", "AM" - common in PDF headers
+      if (/(להורדה|PM|AM|pdf|download)/i.test(line)) return false;
+
+      return true;
+    });
+
+    const vendorLine = candidate || lines[0];
     const confidence = overallConfidence / 100;
 
     return {
       value: vendorLine,
       confidence,
-      needsReview: confidence < threshold,
+      needsReview: confidence < threshold || !candidate, // Mark for review if we fell back to first line
     };
   }
 

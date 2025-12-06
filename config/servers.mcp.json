@@ -98,6 +98,15 @@
             "source": "user_input"
           },
           {
+            "name": "invoiceNumber",
+            "label": "Invoice/Receipt Number",
+            "labelHe": "מספר חשבונית/קבלה",
+            "type": "text",
+            "required": false,
+            "placeholder": "Enter invoice or receipt number",
+            "source": "ocr"
+          },
+          {
             "name": "invoiceDetails",
             "label": "Invoice Details/Purpose",
             "labelHe": "פרטי החשבונית/מטרה",
