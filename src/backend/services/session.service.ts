@@ -152,11 +152,30 @@ export class SessionService {
     session.extractedData = { ...session.extractedData, ...data };
     
     for (const [key, value] of Object.entries(data)) {
-      if (value && typeof value === 'string' && value.trim()) {
-        session.answers[key] = value;
-        session.gaps = session.gaps.filter(g => g !== key);
+      if (value !== null && value !== undefined) {
+        // Convert non-string values to strings for answers
+        let stringValue: string;
+        if (typeof value === 'string') {
+          stringValue = value.trim();
+        } else if (Array.isArray(value)) {
+          stringValue = value.join(', ');
+        } else {
+          stringValue = String(value);
+        }
+        
+        if (stringValue) {
+          session.answers[key] = stringValue;
+          session.gaps = session.gaps.filter(g => g !== key);
+        }
       }
     }
+    
+    logger.info('Set extracted data', { 
+      sessionId: session.id, 
+      dataKeys: Object.keys(data),
+      answersKeys: Object.keys(session.answers),
+      remainingGaps: session.gaps 
+    });
     
     await this.saveSession(session);
     return session;

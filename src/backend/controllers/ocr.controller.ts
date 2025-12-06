@@ -45,22 +45,28 @@ export class OCRController {
       const enrichedFields: Record<string, string | undefined> = {};
       
       if (result.invoice) {
-        // Map to MCP invoice schema field names
-        if (result.invoice.vendor?.value) {
-          enrichedFields.invoiceDetails = result.invoice.vendor.value;
-        }
+        // Map to MCP invoice schema field names - separate fields for amount, currency, vendor
         if (result.invoice.date?.value) {
           enrichedFields.invoiceDate = result.invoice.date.value;
         }
         if (result.invoice.amount?.value) {
-          // Include amount in invoice details if we have it
-          const currency = result.invoice.currency?.value || '';
-          const amountStr = `${result.invoice.amount.value} ${currency}`.trim();
-          if (enrichedFields.invoiceDetails) {
-            enrichedFields.invoiceDetails += ` - ${amountStr}`;
+          enrichedFields.amount = String(result.invoice.amount.value);
+        }
+        if (result.invoice.currency?.value) {
+          // Normalize currency to match schema options (ILS, USD, EUR)
+          const currencyValue = result.invoice.currency.value.toUpperCase();
+          if (currencyValue.includes('₪') || currencyValue.includes('ILS') || currencyValue.includes('שקל')) {
+            enrichedFields.currency = 'ILS';
+          } else if (currencyValue.includes('$') || currencyValue.includes('USD')) {
+            enrichedFields.currency = 'USD';
+          } else if (currencyValue.includes('€') || currencyValue.includes('EUR')) {
+            enrichedFields.currency = 'EUR';
           } else {
-            enrichedFields.invoiceDetails = amountStr;
+            enrichedFields.currency = currencyValue;
           }
+        }
+        if (result.invoice.vendor?.value) {
+          enrichedFields.vendor = result.invoice.vendor.value;
         }
         // Try to detect expense type from vendor or description
         if (result.invoice.vendor?.value) {

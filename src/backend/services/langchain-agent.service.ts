@@ -682,7 +682,12 @@ Return ONLY the JSON object, no other text:`;
 
     const extractedData = await this.extractDataFromInput(request.userInput, intent);
     if (extractedData) {
-      await this.sessionService.setExtractedData(session, extractedData);
+      // Normalize extracted data to match MCP schema field names
+      // This ensures fields like 'origin' -> 'departureCity', 'destination' -> 'destinationCity', etc.
+      const normalizedData = this.normalizeDataForMcpSchema(extractedData);
+      console.log('[LangChainAgent] Extracted data:', extractedData);
+      console.log('[LangChainAgent] Normalized data for MCP schema:', normalizedData);
+      await this.sessionService.setExtractedData(session, normalizedData);
     }
 
     const updatedSession = await this.sessionService.getSession(session.id);
