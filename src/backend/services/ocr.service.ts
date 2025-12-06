@@ -1,5 +1,6 @@
 import Tesseract from 'tesseract.js';
 import sharp from 'sharp';
+import { PDFParse } from 'pdf-parse';
 import { OCRRequest, OCRResult, OCRConfig, InvoiceData } from '../models/ocr.model';
 import { OCRParserService } from './ocr-parser.service';
 
@@ -21,6 +22,13 @@ export class OCRService {
 
     try {
       this.validateFile(request);
+      
+      // Handle PDFs separately - extract text directly without OCR
+      if (request.mimeType === 'application/pdf') {
+        return await this.processPdf(request.imageBuffer, startTime);
+      }
+      
+      // For images, use Tesseract OCR
       const preprocessedImage = await this.preprocessImage(request.imageBuffer);
       const ocrResult = await this.extractText(preprocessedImage);
       const invoiceData = this.parser.parseInvoice(
@@ -49,6 +57,54 @@ export class OCRService {
         confidence: 0,
         processingTime,
         errors: [error.message],
+      };
+    }
+  }
+  
+  /**
+   * Process PDF files by extracting embedded text directly
+   * Most invoices/receipts have text embedded, so OCR is not needed
+   */
+  private async processPdf(pdfBuffer: Buffer, startTime: number): Promise<OCRResult> {
+    try {
+      console.log('[OCR] Processing PDF - extracting embedded text');
+      const parser = new PDFParse({ data: pdfBuffer });
+      const textResult = await parser.getText();
+      const text = textResult.text;
+      
+      if (!text || text.trim().length === 0) {
+        return {
+          success: false,
+          rawText: '',
+          confidence: 0,
+          processingTime: Date.now() - startTime,
+          errors: ['PDF contains no extractable text. Please upload an image of the invoice instead.'],
+        };
+      }
+      
+      console.log(`[OCR] Extracted ${text.length} characters from PDF`);
+      
+      // Parse the extracted text for invoice data
+      // Use high confidence since text is directly extracted, not OCR'd
+      const invoiceData = this.parser.parseInvoice(text, 95, this.config.confidenceThreshold);
+      const processingTime = Date.now() - startTime;
+      
+      return {
+        success: true,
+        rawText: text,
+        confidence: 0.95, // High confidence for direct text extraction
+        invoice: invoiceData,
+        processingTime,
+        warnings: this.generateWarnings(invoiceData, 95),
+      };
+    } catch (error: any) {
+      console.error(`[OCR] PDF parsing failed: ${error.message}`);
+      return {
+        success: false,
+        rawText: '',
+        confidence: 0,
+        processingTime: Date.now() - startTime,
+        errors: [`Failed to extract text from PDF: ${error.message}`],
       };
     }
   }
