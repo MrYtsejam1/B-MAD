@@ -28,6 +28,7 @@ class AgentClient {
                 body: JSON.stringify({
                     userInput,
                     mode: 'chat',
+                    model: model,
                     scenario: context.mcpServer || 'auto'
                 }),
                 signal: this.currentStream.signal

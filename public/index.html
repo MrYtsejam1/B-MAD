@@ -644,19 +644,14 @@
         <div class="demo-card">
             <h2>AI Form Generator</h2>
             <p style="color: #666; margin-bottom: 20px;">
-                Choose between Simple mode (direct form generation) or Advanced mode (intelligent agent with streaming, MCP integration, and clarifying questions).
+                Intelligent agent with streaming, MCP integration, and clarifying questions. Describe your form in natural language (Hebrew or English).
             </p>
 
-            <!-- Mode Selection -->
-            <div class="input-group" style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 10px; font-weight: 600;">Select Mode:</label>
+            <!-- Mode Selection - Hidden, always advanced mode -->
+            <div class="input-group" style="margin-bottom: 20px; display: none;">
                 <div style="display: flex; gap: 15px;">
                     <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="radio" name="mode" value="simple" checked style="margin-right: 8px;">
-                        <span>Simple Mode (Direct Generation)</span>
-                    </label>
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="radio" name="mode" value="advanced" style="margin-right: 8px;">
+                        <input type="radio" name="mode" value="advanced" checked style="margin-right: 8px;">
                         <span>Advanced Mode (Agent + Streaming)</span>
                     </label>
                 </div>
@@ -675,8 +670,7 @@
                 <div class="input-group" style="margin-top: 15px;">
                     <label for="modelSelect">Select AI Model:</label>
                     <select id="modelSelect" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: white;">
-                        <option value="zai-org/GLM-4-32B-0414:featherless-ai" selected>GLM-4-32B-0414 → JSON Schema</option>
-                        <option value="Qwen/Qwen2.5-Coder-7B-Instruct:featherless-ai">Qwen2.5-Coder-7B → Web Component</option>
+                        <option value="Qwen/Qwen2.5-Coder-7B-Instruct:featherless-ai" selected>Qwen2.5-Coder-7B → Web Component</option>
                         <option value="agentica-org/DeepCoder-14B-Preview:featherless-ai">DeepCoder-14B → Web Component</option>
                     </select>
                 </div>                <!-- MCP Server selection hidden - agent auto-detects context from user input -->
@@ -687,29 +681,16 @@
                     </select>
                 </div>
 
-                <!-- Simple Mode Buttons -->
-                <div id="simpleModeButtons" style="margin-top: 15px;">
-                    <button class="btn" id="generateBtn">
-                        Generate Form (Demo Mode)
-                    </button>
-                    <button class="btn" id="generateRealBtn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin-left: 10px;">
-                        Generate with AI (HF)
-                    </button>
-                </div>
-
-                <!-- Advanced Mode Buttons -->
-                <div id="advancedModeButtons" style="margin-top: 15px; display: none;">
+                <!-- Agent Conversation Button -->
+                <div id="advancedModeButtons" style="margin-top: 15px;">
                     <button class="btn" id="generateAgentBtn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                         🤖 Start Agent Conversation
                     </button>
                 </div>
             </div>
 
-            <!-- Simple Mode Result -->
-            <div id="result"></div>
-
-            <!-- Advanced Mode Stream Log -->
-            <div id="agentStreamContainer" style="display: none; margin-top: 20px;">
+            <!-- Agent Stream Log -->
+            <div id="agentStreamContainer" style="margin-top: 20px;">
                 <h3>Agent Stream</h3>
                 <div id="agentStreamLog" style="background: #f9f9f9; border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 13px;" role="log" aria-live="polite" aria-atomic="false"></div>
                 <div id="agentResult" style="margin-top: 20px;"></div>

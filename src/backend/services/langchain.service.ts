@@ -11,11 +11,10 @@ import { EmulatedAIService } from './emulated-ai.service';
 export class LangChainService {
   private hf: InferenceClient | null = null;
   private readonly availableModels: string[] = [
-    'agentica-org/DeepCoder-14B-Preview:featherless-ai',
-    'zai-org/GLM-4-32B-0414:featherless-ai',
-    'Qwen/Qwen2.5-Coder-7B-Instruct:featherless-ai'
+    'Qwen/Qwen2.5-Coder-7B-Instruct:featherless-ai',
+    'agentica-org/DeepCoder-14B-Preview:featherless-ai'
   ];
-  private readonly defaultModel: string = 'agentica-org/DeepCoder-14B-Preview:featherless-ai';
+  private readonly defaultModel: string = 'Qwen/Qwen2.5-Coder-7B-Instruct:featherless-ai';
   private readonly maxRetries: number = 3;
   private readonly baseDelay: number = 1000;
   private emulatedAI: EmulatedAIService;

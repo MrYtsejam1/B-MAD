@@ -30,6 +30,7 @@ export interface ConversationMessage {
 export interface SessionStartRequest {
   userInput: string;
   mode?: 'chat' | 'wizard';
+  model?: string;
   scenario?: 'invoice' | 'travel' | 'auto';
 }
 
