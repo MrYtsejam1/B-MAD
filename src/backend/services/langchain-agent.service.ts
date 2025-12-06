@@ -92,7 +92,9 @@ export class LangChainAgentService {
       return IntentType.TRAVEL_BOOKING;
     }
 
-    if (userInput.includes('טיסה') || userInput.includes('מלון') || userInput.includes('נסיעה') || userInput.includes('תיירות')) {
+    const hebrewTravelPattern = /(טיס[התות]?)|(מלונ(?:ו|וֹ)?ת?)|(נסיע[הת]?)|(תיירות)/;
+    if (hebrewTravelPattern.test(userInput)) {
+      console.log('[LangChainAgent] Matched Hebrew travel keyword');
       return IntentType.TRAVEL_BOOKING;
     }
 
@@ -117,12 +119,21 @@ Respond with ONLY one of: invoice_submission, travel_booking, general_form, clar
       const response = await this.hf.chatCompletion({
         model: this.models.intent,
         messages: [{ role: 'user', content: prompt }],
-        max_tokens: 50,
-        temperature: 0.1,
+        max_tokens: 20,
+        temperature: 0,
       });
 
       const classification = response.choices[0]?.message?.content?.trim().toLowerCase() || 'unknown';
       console.log('[LangChainAgent] LLM classification result:', classification);
+
+      const match = classification.match(/\b(invoice_submission|travel_booking|general_form|clarification|unknown)\b/);
+      if (match) {
+        const category = match[1];
+        if (category === 'invoice_submission') return IntentType.INVOICE_SUBMISSION;
+        if (category === 'travel_booking') return IntentType.TRAVEL_BOOKING;
+        if (category === 'general_form') return IntentType.GENERAL_FORM;
+        if (category === 'clarification') return IntentType.CLARIFICATION;
+      }
 
       if (classification.includes('invoice')) return IntentType.INVOICE_SUBMISSION;
       if (classification.includes('travel')) return IntentType.TRAVEL_BOOKING;
