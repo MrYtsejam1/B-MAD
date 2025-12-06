@@ -390,12 +390,13 @@ Return ONLY the JSON object:`;
     try {
       const prompt = `Extract expense/invoice details from the following text. Return ONLY a JSON object:
 {
+  "workerName": "name of the person submitting (if mentioned)",
   "date": "expense date",
   "amount": "amount value",
   "currency": "currency code or symbol",
   "vendor": "vendor/merchant name",
-  "category": "expense category (meals, travel, supplies, software, other)",
-  "purpose": "purpose or description"
+  "category": "expense category (parking, food, hotel, flight, conference, other)",
+  "purpose": "purpose or description of the expense"
 }
 
 Text: "${userInput}"
@@ -902,7 +903,7 @@ Return ONLY the JSON object, no other text:`;
   private normalizeDataForMcpSchema(data: Record<string, unknown>): Record<string, unknown> {
     const normalized: Record<string, unknown> = { ...data };
 
-    // Add MCP schema field names from extraction aliases
+    // Travel MCP schema field mappings
     if (data['destination'] && !normalized['destinationCity']) {
       normalized['destinationCity'] = data['destination'];
     }
@@ -916,7 +917,7 @@ Return ONLY the JSON object, no other text:`;
       normalized['travelersNames'] = data['travelers'];
     }
 
-    // Parse flight numbers
+    // Parse flight numbers from 'flights' field
     if (data['flights']) {
       const flights = String(data['flights']);
       const flightCodes = flights.match(/[A-Z]{2}\d+/gi);
@@ -928,6 +929,14 @@ Return ONLY the JSON object, no other text:`;
           normalized['returnFlightNumber'] = flightCodes[1];
         }
       }
+    }
+
+    // Invoice MCP schema field mappings
+    if (data['purpose'] && !normalized['invoiceDetails']) {
+      normalized['invoiceDetails'] = data['purpose'];
+    }
+    if (data['category'] && !normalized['expenseType']) {
+      normalized['expenseType'] = data['category'];
     }
 
     return normalized;
