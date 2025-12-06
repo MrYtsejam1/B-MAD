@@ -171,6 +171,18 @@ Respond with ONLY one of: invoice_submission, travel_booking, general_form, clar
     const mcpServerId = intent === IntentType.INVOICE_SUBMISSION ? 'invoice' : 
                         intent === IntentType.TRAVEL_BOOKING ? 'travel' : null;
 
+    // Handle UNKNOWN or CLARIFICATION intents - ask clarifying questions
+    if (intent === IntentType.UNKNOWN || intent === IntentType.CLARIFICATION) {
+      const questions: string[] = [];
+      questions.push('I\'m not sure I fully understand your request. Could you help me clarify?');
+      questions.push('What would you like to do? For example:');
+      questions.push('- Submit an expense or invoice');
+      questions.push('- Book travel (flights, hotels, etc.)');
+      questions.push('- Create a custom form');
+      return questions;
+    }
+
+    // For GENERAL_FORM intent without MCP server, we can proceed without questions
     if (!mcpServerId) {
       return undefined;
     }
