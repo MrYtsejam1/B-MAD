@@ -7,7 +7,7 @@ import { OCRParserService } from './ocr-parser.service';
 export class OCRService {
   private readonly parser: OCRParserService;
   private readonly config: OCRConfig = {
-    language: 'eng',
+    language: 'eng+heb', // Support both English and Hebrew for invoices
     confidenceThreshold: 0.7,
     maxFileSize: 10 * 1024 * 1024, // 10MB
     supportedFormats: ['image/jpeg', 'image/png', 'image/jpg', 'application/pdf'],
