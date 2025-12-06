@@ -47,29 +47,62 @@ export class OutputModeService {
       properties: {},
       required: [] as string[],
       // Include fields array for frontend compatibility
-      fields: [] as Array<{ name: string; label: string; type: string; required: boolean; placeholder: string }>,
+      fields: [] as Array<{ 
+        name: string; 
+        label: string; 
+        labelHe?: string;
+        type: string; 
+        required: boolean; 
+        placeholder: string;
+        options?: Array<{ value: string; label: string; labelHe?: string }>;
+        accept?: string;
+        source?: string;
+        multiple?: boolean;
+      }>,
     };
 
     for (const field of fields) {
       const fieldName = typeof field === 'string' ? field : field.name;
       const fieldLabel = typeof field === 'string' ? this.formatFieldName(field) : (field.label || this.formatFieldName(field.name));
+      const fieldLabelHe = typeof field === 'string' ? undefined : field.labelHe;
       const fieldType = typeof field === 'string' ? 'text' : (field.type || 'text');
       const fieldRequired = typeof field === 'string' ? false : (field.required || false);
       const fieldPlaceholder = typeof field === 'string' ? `Enter ${this.formatFieldName(field).toLowerCase()}` : (field.placeholder || '');
+      const fieldOptions = typeof field === 'string' ? undefined : field.options;
+      const fieldAccept = typeof field === 'string' ? undefined : field.accept;
+      const fieldSource = typeof field === 'string' ? undefined : field.source;
+      const fieldMultiple = typeof field === 'string' ? undefined : field.multiple;
       
-      (schema.properties as any)[fieldName] = {
+      const propertyDef: any = {
         type: this.mapFieldTypeToJsonSchema(fieldType),
         title: fieldLabel,
       };
       
+      // Add enum for select fields
+      if (fieldType === 'select' && fieldOptions) {
+        propertyDef.enum = fieldOptions.map((opt: any) => opt.value);
+        propertyDef.enumLabels = fieldOptions.map((opt: any) => opt.label);
+      }
+      
+      (schema.properties as any)[fieldName] = propertyDef;
+      
       // Add to fields array for frontend form rendering
-      schema.fields.push({
+      const fieldDef: any = {
         name: fieldName,
         label: fieldLabel,
         type: fieldType,
         required: fieldRequired,
         placeholder: fieldPlaceholder,
-      });
+      };
+      
+      // Add optional properties if they exist
+      if (fieldLabelHe) fieldDef.labelHe = fieldLabelHe;
+      if (fieldOptions) fieldDef.options = fieldOptions;
+      if (fieldAccept) fieldDef.accept = fieldAccept;
+      if (fieldSource) fieldDef.source = fieldSource;
+      if (fieldMultiple) fieldDef.multiple = fieldMultiple;
+      
+      schema.fields.push(fieldDef);
       
       if (fieldRequired) {
         schema.required.push(fieldName);

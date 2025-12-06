@@ -139,4 +139,19 @@ export class AgentToolsService {
       throw new Error(`Failed to extract NLP data: ${error.message}`);
     }
   }
+
+  /**
+   * Detect which MCP server matches the user input based on configured prompts
+   * Uses Hebrew and English keywords from MCP config for auto-detection
+   */
+  detectMcpServerFromInput(userInput: string): string | null {
+    return this.mcpGateway.detectServerFromInput(userInput);
+  }
+
+  /**
+   * Get all MCP servers with their prompts for intent detection
+   */
+  getMcpIntentPrompts(): Map<string, { he: string[]; en: string[]; serverId: string; name: string }> {
+    return this.mcpGateway.getIntentPrompts();
+  }
 }

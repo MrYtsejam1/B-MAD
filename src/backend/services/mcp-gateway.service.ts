@@ -45,14 +45,67 @@ export class MCPGatewayService {
     return server;
   }
 
-  getCapabilities(serverId: string): MCPCapabilities & { requirements?: any } {
+  getCapabilities(serverId: string): MCPCapabilities & { requirements?: any; formSchema?: any } {
     const server = this.getServer(serverId);
     return {
       resources: true,
       tools: true,
       prompts: true,
       requirements: server.workflow,
+      formSchema: (server as any).formSchema,
     };
+  }
+
+  /**
+   * Get all MCP servers with their prompts for intent detection
+   * Returns a map of server ID to prompts (Hebrew and English keywords)
+   */
+  getIntentPrompts(): Map<string, { he: string[]; en: string[]; serverId: string; name: string }> {
+    this.ensureInitialized();
+    const promptsMap = new Map<string, { he: string[]; en: string[]; serverId: string; name: string }>();
+    
+    for (const [serverId, server] of this.servers) {
+      const workflow = (server as any).workflow;
+      if (workflow?.prompts) {
+        promptsMap.set(serverId, {
+          he: workflow.prompts.he || [],
+          en: workflow.prompts.en || [],
+          serverId,
+          name: server.name,
+        });
+      }
+    }
+    
+    return promptsMap;
+  }
+
+  /**
+   * Detect which MCP server matches the user input based on prompts
+   * Returns the server ID if a match is found, null otherwise
+   */
+  detectServerFromInput(userInput: string): string | null {
+    const promptsMap = this.getIntentPrompts();
+    const lowerInput = userInput.toLowerCase();
+    
+    for (const [serverId, prompts] of promptsMap) {
+      // Check Hebrew prompts (case-sensitive for Hebrew)
+      for (const hePrompt of prompts.he) {
+        if (userInput.includes(hePrompt)) {
+          console.log(`[MCPGateway] Matched Hebrew prompt "${hePrompt}" for server ${serverId}`);
+          return serverId;
+        }
+      }
+      
+      // Check English prompts (case-insensitive)
+      for (const enPrompt of prompts.en) {
+        if (lowerInput.includes(enPrompt.toLowerCase())) {
+          console.log(`[MCPGateway] Matched English prompt "${enPrompt}" for server ${serverId}`);
+          return serverId;
+        }
+      }
+    }
+    
+    return null;
   }
 
   async validate(

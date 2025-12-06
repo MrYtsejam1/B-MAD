@@ -104,13 +104,22 @@ export class LangChainAgentService {
   }
 
   private async classifyIntent(userInput: string): Promise<IntentType> {
+    // First, try to detect MCP server from configured prompts (Hebrew and English keywords)
+    const detectedServer = this.tools.detectMcpServerFromInput(userInput);
+    if (detectedServer) {
+      console.log(`[LangChainAgent] Auto-detected MCP server from prompts: ${detectedServer}`);
+      if (detectedServer === 'invoice') {
+        return IntentType.INVOICE_SUBMISSION;
+      }
+      if (detectedServer === 'travel') {
+        return IntentType.TRAVEL_BOOKING;
+      }
+    }
+
+    // Fallback to basic keyword matching if MCP prompts didn't match
     const lowerInput = userInput.toLowerCase();
 
     if (lowerInput.includes('invoice') || lowerInput.includes('expense') || lowerInput.includes('receipt')) {
-      return IntentType.INVOICE_SUBMISSION;
-    }
-
-    if (userInput.includes('חשבונית') || userInput.includes('הוצאה') || userInput.includes('קבלה') || userInput.includes('החזר')) {
       return IntentType.INVOICE_SUBMISSION;
     }
 
@@ -118,25 +127,45 @@ export class LangChainAgentService {
       return IntentType.TRAVEL_BOOKING;
     }
 
+    // Fallback Hebrew patterns for edge cases not covered by MCP prompts
     const hebrewTravelPattern = /(טיס[התות]?)|(מלונ(?:ו|וֹ)?ת?)|(נסיע[הת]?)|(תיירות)/;
     if (hebrewTravelPattern.test(userInput)) {
-      console.log('[LangChainAgent] Matched Hebrew travel keyword');
+      console.log('[LangChainAgent] Matched Hebrew travel keyword (fallback pattern)');
       return IntentType.TRAVEL_BOOKING;
     }
 
+    const hebrewInvoicePattern = /(חשבונית)|(הוצאה)|(קבלה)|(החזר)/;
+    if (hebrewInvoicePattern.test(userInput)) {
+      console.log('[LangChainAgent] Matched Hebrew invoice keyword (fallback pattern)');
+      return IntentType.INVOICE_SUBMISSION;
+    }
+
     try {
+      // Get MCP prompts for LLM context
+      const mcpPrompts = this.tools.getMcpIntentPrompts();
+      let promptExamples = '';
+      for (const [serverId, prompts] of mcpPrompts) {
+        const heExamples = prompts.he.slice(0, 2).join(', ');
+        const enExamples = prompts.en.slice(0, 2).join(', ');
+        promptExamples += `\n- ${serverId}: Hebrew keywords (${heExamples}), English keywords (${enExamples})`;
+      }
+
       const prompt = `Classify the following user request into one of these categories. The input can be in ANY language (English, Hebrew, Arabic, etc.):
-- invoice_submission: User wants to submit an expense or invoice
-- travel_booking: User wants to book travel (flights, hotels, etc.)
+- invoice_submission: User wants to submit an expense, invoice, or bill refund
+- travel_booking: User wants to book travel (flights, hotels, business trips, vacations)
 - general_form: User wants to create a general form
 - clarification: User is asking a question or needs clarification
 - unknown: Cannot determine intent
+
+Available MCP tools and their keywords:${promptExamples}
 
 Examples:
 "I need to submit an expense" → invoice_submission
 "אני רוצה להגיש חשבונית" → invoice_submission
 "Book a flight to Rome" → travel_booking
 "יש לי טיסת עבודה" → travel_booking
+"חופשה בפראג" → travel_booking
+"החזר על קבלה" → invoice_submission
 
 User request: "${userInput}"
 
@@ -215,26 +244,65 @@ Respond with ONLY one of: invoice_submission, travel_booking, general_form, clar
 
     const capabilities = await this.tools.mcpDescribe(mcpServerId);
     const requiredFields = capabilities.requirements?.requiredFields || [];
+    const formSchema = capabilities.formSchema;
 
     const mentionedFields = this.extractMentionedFields(userInput, requiredFields);
     const missingFields = requiredFields.filter((field: string) => !mentionedFields.includes(field));
 
     const questions: string[] = [];
-    const fieldQuestions: Record<string, string> = {
+    
+    // Build field questions dynamically from MCP formSchema
+    const fieldQuestions: Record<string, string> = {};
+    if (formSchema?.fields) {
+      for (const field of formSchema.fields) {
+        const fieldName = field.name;
+        const label = field.label || fieldName;
+        const labelHe = field.labelHe;
+        // Generate question based on field type and label
+        if (field.type === 'select' && field.options) {
+          const optionLabels = field.options.map((opt: any) => opt.label).join(', ');
+          fieldQuestions[fieldName] = `What is the ${label}? (Options: ${optionLabels})`;
+        } else if (field.type === 'file') {
+          fieldQuestions[fieldName] = `Would you like to upload a file for ${label}?`;
+        } else if (field.type === 'textarea') {
+          fieldQuestions[fieldName] = `Please provide the ${label}:`;
+        } else {
+          fieldQuestions[fieldName] = `What is the ${label}?`;
+        }
+        // Add Hebrew label hint if available
+        if (labelHe) {
+          fieldQuestions[fieldName] += ` (${labelHe})`;
+        }
+      }
+    }
+    
+    // Fallback questions for common fields not in schema
+    const fallbackQuestions: Record<string, string> = {
       date: 'What date was this expense?',
       amount: 'What was the amount?',
       currency: 'What currency?',
       purpose: 'What was the purpose of this expense?',
-      category: 'What category does this fall under (meals, travel, supplies, software, other)?',
+      category: 'What category does this fall under?',
       destination: 'Where are you traveling to?',
       startDate: 'When does your trip start?',
       endDate: 'When does your trip end?',
       travelers: 'How many travelers?',
+      workerName: 'What is your name?',
+      travelersNames: 'Who else is traveling with you? (co-workers)',
+      departureCity: 'What city are you departing from?',
+      destinationCity: 'What is your destination city?',
+      passport: 'What is your passport number?',
+      departureFlightNumber: 'What is your departure flight number?',
+      returnFlightNumber: 'What is your return flight number?',
+      hotelDetails: 'What hotel will you be staying at? (name and address)',
+      invoiceUpload: 'Would you like to upload an invoice image?',
+      invoiceDetails: 'Please provide the invoice details:',
+      expenseType: 'What type of expense is this? (parking, food, hotel, flight, conference)',
     };
 
     if (missingFields.length > 0) {
       for (const field of missingFields.slice(0, 3)) {
-        const question = fieldQuestions[field] || `What is the ${field}?`;
+        const question = fieldQuestions[field] || fallbackQuestions[field] || `What is the ${field}?`;
         questions.push(question);
       }
     }
@@ -402,17 +470,31 @@ Return ONLY the JSON object:`;
     if (mcpServerId) {
       const capabilities = await this.tools.mcpDescribe(mcpServerId);
       const requiredFields = capabilities.requirements?.requiredFields || [];
+      const formSchema = capabilities.formSchema;
       
       console.log('[LangChainAgent] MCP capabilities:', {
         name: capabilities.name,
         requiredFields,
+        formSchemaFields: formSchema?.fields?.length || 0,
         requirementsExists: !!capabilities.requirements
       });
+      
+      // Use detailed formSchema fields if available, otherwise fall back to requiredFields
+      let fields: any[];
+      if (formSchema?.fields && Array.isArray(formSchema.fields) && formSchema.fields.length > 0) {
+        // Use the detailed field definitions from MCP formSchema
+        fields = formSchema.fields;
+        console.log('[LangChainAgent] Using detailed MCP formSchema fields:', fields.map((f: any) => f.name));
+      } else {
+        // Fall back to simple field names from requiredFields
+        fields = Array.isArray(requiredFields) ? requiredFields : [];
+        console.log('[LangChainAgent] Using simple requiredFields:', fields);
+      }
       
       formData = {
         title: capabilities.name,
         description: capabilities.description,
-        fields: Array.isArray(requiredFields) ? requiredFields : [],
+        fields,
       };
     } else {
       formData = await this.extractFormFromPrompt(userInput);
