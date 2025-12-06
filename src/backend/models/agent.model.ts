@@ -36,7 +36,7 @@ export interface AgentTool {
 }
 
 export interface AgentEvent {
-  type: 'analyzing' | 'question' | 'generating' | 'complete' | 'error';
+  type: 'analyzing' | 'question' | 'generating' | 'complete' | 'error' | 'session_started';
   data?: any;
   timestamp: string;
 }
