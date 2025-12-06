@@ -334,11 +334,16 @@ class AgentUI {
 
         const streamLog = document.getElementById('agentStreamLog');
         const questionContainer = document.createElement('div');
-        questionContainer.className = 'chat-question-container';
+        questionContainer.className = 'chatbot-input-container';
         questionContainer.innerHTML = `
-            <div class="chat-input-row">
-                <input type="text" id="chatAnswer" class="chat-answer-input" placeholder="Type your answer..." autofocus>
-                <button class="btn chat-send-btn" id="sendAnswer">Send</button>
+            <div class="chatbot-input-wrapper">
+                <input type="text" id="chatAnswer" class="chatbot-input" placeholder="Type your message..." autofocus>
+                <button class="chatbot-send-btn" id="sendAnswer" title="Send message">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
             </div>
         `;
 

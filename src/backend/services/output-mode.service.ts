@@ -181,59 +181,138 @@ class GeneratedFormComponent extends HTMLElement {
     
     const style = document.createElement('style');
     style.textContent = \`
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+      
       .generated-form {
-        max-width: 600px;
+        max-width: 640px;
         margin: 0 auto;
-        padding: 20px;
-        font-family: Arial, sans-serif;
+        padding: 32px 40px;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+        border-radius: 16px;
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 20px 25px -5px rgba(0, 0, 0, 0.05);
+        border: 1px solid rgba(226, 232, 240, 0.8);
       }
       .generated-form h2 {
-        color: #333;
-        margin-bottom: 10px;
+        color: #1e293b;
+        margin-bottom: 8px;
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: -0.025em;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
       }
       .generated-form p {
-        color: #666;
-        margin-bottom: 20px;
+        color: #64748b;
+        margin-bottom: 28px;
+        font-size: 15px;
+        line-height: 1.6;
       }
       .form-field {
-        margin-bottom: 15px;
+        margin-bottom: 24px;
       }
       .form-field label {
         display: block;
-        margin-bottom: 5px;
-        font-weight: bold;
-        color: #555;
+        margin-bottom: 8px;
+        font-weight: 500;
+        color: #374151;
+        font-size: 14px;
+        letter-spacing: 0.01em;
+      }
+      .form-field label .required {
+        color: #ef4444;
+        margin-left: 2px;
       }
       .form-field input,
-      .form-field textarea {
+      .form-field textarea,
+      .form-field select {
         width: 100%;
-        padding: 10px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        font-size: 14px;
+        padding: 12px 16px;
+        border: 2px solid #e2e8f0;
+        border-radius: 10px;
+        font-size: 15px;
         box-sizing: border-box;
+        font-family: inherit;
+        background: #ffffff;
+        color: #1e293b;
+        transition: all 0.2s ease;
+      }
+      .form-field input::placeholder,
+      .form-field textarea::placeholder {
+        color: #94a3b8;
+      }
+      .form-field input:hover,
+      .form-field textarea:hover,
+      .form-field select:hover {
+        border-color: #cbd5e1;
       }
       .form-field input:focus,
-      .form-field textarea:focus {
+      .form-field textarea:focus,
+      .form-field select:focus {
         outline: none;
-        border-color: #4CAF50;
+        border-color: #667eea;
+        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
       }
       .form-field textarea {
         resize: vertical;
-        min-height: 80px;
+        min-height: 100px;
+        line-height: 1.5;
+      }
+      .form-field select {
+        cursor: pointer;
+        appearance: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+        background-repeat: no-repeat;
+        background-position: right 12px center;
+        background-size: 20px;
+        padding-right: 44px;
+      }
+      .form-field input[type="file"] {
+        padding: 10px 12px;
+        cursor: pointer;
+        background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+      }
+      .form-field input[type="file"]::-webkit-file-upload-button {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border: none;
+        padding: 8px 16px;
+        border-radius: 6px;
+        font-weight: 500;
+        cursor: pointer;
+        margin-right: 12px;
+        font-size: 13px;
+        transition: opacity 0.2s;
+      }
+      .form-field input[type="file"]::-webkit-file-upload-button:hover {
+        opacity: 0.9;
+      }
+      .form-field input[type="date"] {
+        cursor: pointer;
       }
       .submit-btn {
-        background-color: #4CAF50;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
-        padding: 12px 24px;
+        padding: 14px 28px;
         border: none;
-        border-radius: 4px;
+        border-radius: 10px;
         cursor: pointer;
         font-size: 16px;
+        font-weight: 600;
         width: 100%;
+        margin-top: 8px;
+        transition: all 0.2s ease;
+        box-shadow: 0 4px 14px 0 rgba(102, 126, 234, 0.35);
+        letter-spacing: 0.02em;
       }
       .submit-btn:hover {
-        background-color: #45a049;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px 0 rgba(102, 126, 234, 0.45);
+      }
+      .submit-btn:active {
+        transform: translateY(0);
       }
     \`;
     
