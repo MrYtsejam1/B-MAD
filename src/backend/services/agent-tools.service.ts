@@ -78,6 +78,8 @@ export class AgentToolsService {
       const server = this.mcpGateway.getServer(serverId);
       const capabilities = this.mcpGateway.getCapabilities(serverId);
 
+      // Flatten capabilities to top level so formSchema is directly accessible
+      // This fixes the bug where generateOutput couldn't find formSchema
       return {
         id: server.id,
         name: server.name,
@@ -89,7 +91,7 @@ export class AgentToolsService {
           path: op.path,
           description: op.description,
         })),
-        capabilities,
+        ...capabilities,  // Spread capabilities to top level (includes formSchema)
         requirements: capabilities.requirements,
       };
     } catch (error: any) {
