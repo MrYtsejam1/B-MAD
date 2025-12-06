@@ -97,16 +97,22 @@ export class LangChainAgentService {
     }
 
     try {
-      const prompt = `Classify the following user request into one of these categories:
+      const prompt = `Classify the following user request into one of these categories. The input can be in ANY language (English, Hebrew, Arabic, etc.):
 - invoice_submission: User wants to submit an expense or invoice
 - travel_booking: User wants to book travel (flights, hotels, etc.)
 - general_form: User wants to create a general form
 - clarification: User is asking a question or needs clarification
 - unknown: Cannot determine intent
 
+Examples:
+"I need to submit an expense" → invoice_submission
+"אני רוצה להגיש חשבונית" → invoice_submission
+"Book a flight to Rome" → travel_booking
+"יש לי טיסת עבודה" → travel_booking
+
 User request: "${userInput}"
 
-Respond with only the category name, nothing else.`;
+Respond with ONLY one of: invoice_submission, travel_booking, general_form, clarification, unknown`;
 
       const response = await this.hf.chatCompletion({
         model: this.models.intent,
@@ -116,6 +122,7 @@ Respond with only the category name, nothing else.`;
       });
 
       const classification = response.choices[0]?.message?.content?.trim().toLowerCase() || 'unknown';
+      console.log('[LangChainAgent] LLM classification result:', classification);
 
       if (classification.includes('invoice')) return IntentType.INVOICE_SUBMISSION;
       if (classification.includes('travel')) return IntentType.TRAVEL_BOOKING;
