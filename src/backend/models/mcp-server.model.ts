@@ -12,6 +12,7 @@ export interface MCPServer {
   operations: MCPOperation[];
   workflow?: MCPWorkflow;
   formTemplate?: any;
+  formSchema?: MCPFormSchema;
 }
 
 export interface MCPOperation {
@@ -26,6 +27,27 @@ export interface MCPOperation {
 export interface MCPWorkflow {
   steps: string[];
   requiredFields: string[];
+  prompts?: {
+    he: string[];
+    en: string[];
+  };
+}
+
+export interface MCPFormField {
+  name: string;
+  label: string;
+  labelHe?: string;
+  type: 'text' | 'textarea' | 'select' | 'file' | 'number' | 'date' | 'email';
+  required: boolean;
+  placeholder?: string;
+  options?: Array<{ value: string; label: string; labelHe?: string }>;
+  accept?: string;
+  source?: 'user_input' | 'internal_api' | 'internal_api_or_manual' | 'ocr';
+  multiple?: boolean;
+}
+
+export interface MCPFormSchema {
+  fields: MCPFormField[];
 }
 
 export interface MCPCapabilities {
