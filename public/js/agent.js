@@ -269,6 +269,10 @@ class AgentUI {
                 }
                 break;
 
+            case 'file_upload_request':
+                this.handleFileUploadRequest(data);
+                break;
+
             case 'complete':
                 this.addLogEntry('agent', '✅ Complete!');
                 if (data) {
@@ -372,6 +376,105 @@ class AgentUI {
         });
 
         document.getElementById('chatAnswer')?.focus();
+    }
+
+    handleFileUploadRequest(data) {
+        const { message, accept, endpoint, sessionId } = data;
+        
+        this.addLogEntry('agent', `📎 ${message || 'Please upload your invoice/receipt'}`);
+
+        const streamLog = document.getElementById('agentStreamLog');
+        const uploadContainer = document.createElement('div');
+        uploadContainer.className = 'file-upload-request-container';
+        uploadContainer.innerHTML = `
+            <div class="file-upload-request">
+                <div class="file-upload-dropzone" id="fileDropzone">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p>Drag & drop your invoice here or</p>
+                    <label class="file-upload-btn">
+                        <input type="file" id="invoiceFileInput" accept="${accept || 'image/*,application/pdf'}" style="display: none;">
+                        Browse Files
+                    </label>
+                </div>
+                <div id="fileUploadStatus" class="file-upload-status"></div>
+                <button class="chatbot-send-btn skip-upload-btn" id="skipUpload" title="Skip and continue without file">
+                    Skip
+                </button>
+            </div>
+        `;
+
+        streamLog.appendChild(uploadContainer);
+        streamLog.scrollTop = streamLog.scrollHeight;
+
+        const fileInput = document.getElementById('invoiceFileInput');
+        const dropzone = document.getElementById('fileDropzone');
+        const statusDiv = document.getElementById('fileUploadStatus');
+
+        const processFile = async (file) => {
+            if (!file) return;
+
+            statusDiv.innerHTML = '<span class="ocr-processing">Processing invoice with OCR...</span>';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch(endpoint || '/api/v1/ocr/invoice', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const result = await response.json();
+
+                if (result.success && result.enrichedFields) {
+                    statusDiv.innerHTML = '<span class="ocr-success">Invoice processed successfully!</span>';
+                    
+                    // Store enriched fields in session
+                    this.addLogEntry('system', 'Extracted from invoice: ' + JSON.stringify(result.enrichedFields, null, 2));
+                    
+                    // Mark OCR as processed and continue session with enriched data
+                    uploadContainer.remove();
+                    this.client.continueSession('OCR_PROCESSED:' + JSON.stringify(result.enrichedFields));
+                } else {
+                    statusDiv.innerHTML = `<span class="ocr-error">OCR failed: ${result.error || 'Unknown error'}</span>`;
+                }
+            } catch (error) {
+                console.error('File upload error:', error);
+                statusDiv.innerHTML = `<span class="ocr-error">Upload error: ${error.message}</span>`;
+            }
+        };
+
+        fileInput.addEventListener('change', (e) => {
+            processFile(e.target.files[0]);
+        });
+
+        // Drag and drop handlers
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            processFile(file);
+        });
+
+        // Skip button - continue without file
+        document.getElementById('skipUpload').addEventListener('click', () => {
+            uploadContainer.remove();
+            this.addLogEntry('user', 'Skipped file upload');
+            this.client.continueSession('SKIP_FILE_UPLOAD');
+        });
     }
 
     handleQuestions(questions) {
