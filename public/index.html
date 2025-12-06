@@ -642,59 +642,7 @@
         </div>
 
         <div class="demo-card">
-            <h2>📋 Sprint 1 Implementation Complete</h2>
-            <div class="stats">
-                <div class="stat-card">
-                    <h4>Stories Completed</h4>
-                    <p>7/7</p>
-                </div>
-                <div class="stat-card">
-                    <h4>Story Points</h4>
-                    <p>39/39</p>
-                </div>
-                <div class="stat-card">
-                    <h4>Tests Passing</h4>
-                    <p>116/116</p>
-                </div>
-                <div class="stat-card">
-                    <h4>Test Coverage</h4>
-                    <p>100%</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="demo-card">
-            <h2>✨ Features Implemented</h2>
-            <div class="features">
-                <div class="feature">
-                    <h4>🤖 LangChain Integration</h4>
-                    <p>AI-powered form generation using OpenAI GPT-4 or Anthropic Claude with structured output parsing</p>
-                </div>
-                <div class="feature">
-                    <h4>🔒 JWT Authentication</h4>
-                    <p>Secure API endpoints with JSON Web Token authentication and rate limiting (10 req/min)</p>
-                </div>
-                <div class="feature">
-                    <h4>✅ Schema Validation</h4>
-                    <p>Comprehensive validation with circular dependency detection using DFS algorithm</p>
-                </div>
-                <div class="feature">
-                    <h4>⚡ Redis Caching</h4>
-                    <p>High-performance caching with TTL support and cache statistics tracking</p>
-                </div>
-                <div class="feature">
-                    <h4>🎨 Form Renderer</h4>
-                    <p>Dynamic form rendering with conditional display logic and multiple themes/layouts</p>
-                </div>
-                <div class="feature">
-                    <h4>📝 Field Components</h4>
-                    <p>Reusable field components (Text, Email, Select, Checkbox) with validation integration</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="demo-card">
-            <h2>🎯 API Demo - Generate Form from Natural Language</h2>
+            <h2>AI Form Generator</h2>
             <p style="color: #666; margin-bottom: 20px;">
                 Choose between Simple mode (direct form generation) or Advanced mode (intelligent agent with streaming, MCP integration, and clarifying questions).
             </p>
@@ -765,70 +713,6 @@
                 <h3>Agent Stream</h3>
                 <div id="agentStreamLog" style="background: #f9f9f9; border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 13px;" role="log" aria-live="polite" aria-atomic="false"></div>
                 <div id="agentResult" style="margin-top: 20px;"></div>
-            </div>
-        </div>
-
-        <div class="demo-card">
-            <h2>📚 Architecture Overview</h2>
-            <div class="demo-section">
-                <h3>Backend Stack</h3>
-                <ul style="color: #666; line-height: 1.8; margin-left: 20px;">
-                    <li><strong>Node.js + Express</strong> - REST API server</li>
-                    <li><strong>TypeScript</strong> - Type-safe development</li>
-                    <li><strong>LangChain.js</strong> - AI integration layer</li>
-                    <li><strong>Redis</strong> - Caching layer</li>
-                    <li><strong>Jest</strong> - Testing framework</li>
-                    <li><strong>Zod</strong> - Schema validation</li>
-                </ul>
-            </div>
-
-            <div class="demo-section">
-                <h3>Frontend Stack</h3>
-                <ul style="color: #666; line-height: 1.8; margin-left: 20px;">
-                    <li><strong>TypeScript</strong> - Type-safe components</li>
-                    <li><strong>Web Components Pattern</strong> - Reusable UI components</li>
-                    <li><strong>Factory Pattern</strong> - Dynamic component creation</li>
-                    <li><strong>Validation Service</strong> - Client-side validation</li>
-                </ul>
-            </div>
-        </div>
-
-        <div class="demo-card">
-            <h2>🔗 API Endpoints</h2>
-            <div class="demo-section">
-                <h3>POST /api/v1/forms/generate</h3>
-                <p style="color: #666; margin-bottom: 15px;">Generate a form schema from natural language description</p>
-                <div class="code-block">
-{
-  "prompt": "Create a contact form with name, email, and message",
-  "context": {
-    "purpose": "customer support",
-    "audience": "general users"
-  }
-}
-                </div>
-            </div>
-        </div>
-
-        <div class="demo-card">
-            <h2>📊 Test Results</h2>
-            <div class="demo-section">
-                <h3>Backend Tests (74/74 passing)</h3>
-                <ul style="color: #666; line-height: 1.8; margin-left: 20px;">
-                    <li>✅ STORY-001: LangChain Service - 25/25 tests</li>
-                    <li>✅ STORY-002: API Endpoint - 19/19 tests</li>
-                    <li>✅ STORY-003: Validation Service - 11/11 tests</li>
-                    <li>✅ STORY-004: Caching Service - 19/19 tests</li>
-                </ul>
-            </div>
-
-            <div class="demo-section">
-                <h3>Frontend Tests (42/42 passing)</h3>
-                <ul style="color: #666; line-height: 1.8; margin-left: 20px;">
-                    <li>✅ STORY-005: Form Renderer - 15/15 tests</li>
-                    <li>✅ STORY-006: Field Components - 11/11 tests</li>
-                    <li>✅ STORY-007: Frontend Validation - 16/16 tests</li>
-                </ul>
             </div>
         </div>
 
