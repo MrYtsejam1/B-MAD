@@ -271,15 +271,33 @@ class AgentUI {
 
             case 'complete':
                 this.addLogEntry('agent', '✅ Complete!');
+                if (data) {
+                    if (data.mode === 'web_component' && data.component) {
+                        this.displayWebComponent(data.component);
+                    } else if (data.component) {
+                        this.displayWebComponent(data.component);
+                    } else if (data.schema) {
+                        this.displayForm(data.schema);
+                    } else if (data.formSchema) {
+                        this.displayForm(data.formSchema);
+                    }
+                }
                 break;
 
             case 'result':
                 if (data.mode === 'web_component' && data.component) {
                     this.displayWebComponent(data.component);
+                } else if (data.component) {
+                    this.displayWebComponent(data.component);
                 } else if (data.schema) {
                     this.displayForm(data.schema);
                 } else if (data.formSchema) {
                     this.displayForm(data.formSchema);
+                } else if (data.form) {
+                    this.displayForm(data.form);
+                } else if (data.action === 'generate') {
+                    this.addLogEntry('agent', '✅ Form data collected. Ready to generate form.');
+                    this.addLogEntry('system', 'Extracted: ' + JSON.stringify(data.extractedData || {}, null, 2));
                 } else {
                     this.addLogEntry('agent', '✅ Result: ' + JSON.stringify(data, null, 2));
                 }
