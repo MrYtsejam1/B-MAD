@@ -56,16 +56,6 @@
             "source": "user_input"
           },
           {
-            "name": "invoiceUpload",
-            "label": "Invoice Upload (OCR)",
-            "labelHe": "העלאת חשבונית",
-            "type": "file",
-            "required": false,
-            "accept": "image/*,application/pdf",
-            "placeholder": "Upload invoice image or PDF for OCR extraction",
-            "source": "ocr"
-          },
-          {
             "name": "amount",
             "label": "Amount",
             "labelHe": "סכום",

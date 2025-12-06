@@ -113,6 +113,9 @@ IMPORTANT EXTRACTION RULES:
    - Usually at the top of the invoice in large text
    - Look for the company logo or header area
    - NOT the customer name
+   - IMPORTANT: The invoice text is ONLY in Hebrew and English.
+     Do NOT output Chinese characters or any other script.
+     If you see characters that look like Chinese, they are actually Hebrew - output them as Hebrew.
 
 4. CATEGORY - Infer from the vendor name and invoice content:
    - Restaurant, cafe, food delivery, catering => "food"
@@ -201,8 +204,13 @@ Return ONLY the JSON object, no explanations or additional text.`;
     }
     
     if (extracted.vendor) {
+      // Clean vendor name by removing CJK characters (Chinese/Japanese/Korean)
+      // Qwen model sometimes confuses Hebrew with Chinese characters
+      const cleanedVendor = this.cleanVendorName(extracted.vendor);
+      console.log('[OCR] Vendor raw vs cleaned:', { raw: extracted.vendor, cleaned: cleanedVendor });
+      
       result.vendor = {
-        value: extracted.vendor,
+        value: cleanedVendor || extracted.vendor,
         confidence: 0.9,
         needsReview: false,
       };
@@ -291,6 +299,20 @@ Return ONLY the JSON object, no explanations or additional text.`;
       console.warn(`[OCR] Image preprocessing failed: ${error.message}`);
       return imageBuffer;
     }
+  }
+
+  /**
+   * Clean vendor name by removing CJK (Chinese/Japanese/Korean) characters
+   * Qwen model sometimes confuses Hebrew characters with Chinese
+   */
+  private cleanVendorName(raw: string): string {
+    // Remove CJK characters (common Chinese/Japanese/Korean Unicode ranges)
+    // \u3400-\u4DBF: CJK Unified Ideographs Extension A
+    // \u4E00-\u9FFF: CJK Unified Ideographs
+    // \uF900-\uFAFF: CJK Compatibility Ideographs
+    const withoutCJK = raw.replace(/[\u3400-\u4DBF\u4E00-\u9FFF\uF900-\uFAFF]/g, '');
+    // Collapse extra spaces and trim
+    return withoutCJK.replace(/\s+/g, ' ').trim();
   }
 
   private generateWarnings(invoiceData: InvoiceData, confidence: number): string[] | undefined {
