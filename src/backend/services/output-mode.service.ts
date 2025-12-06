@@ -37,29 +37,46 @@ export class OutputModeService {
   }
 
   private generateJSONSchema(formData: any): any {
+    const rawFields = formData.fields || [];
+    const fields = Array.isArray(rawFields) ? rawFields : [];
+    
     const schema = {
       type: 'object',
       title: formData.title || 'Generated Form',
       description: formData.description || '',
       properties: {},
       required: [] as string[],
+      // Include fields array for frontend compatibility
+      fields: [] as Array<{ name: string; label: string; type: string; required: boolean; placeholder: string }>,
     };
 
-    for (const field of formData.fields || []) {
+    for (const field of fields) {
       const fieldName = typeof field === 'string' ? field : field.name;
       const fieldLabel = typeof field === 'string' ? this.formatFieldName(field) : (field.label || this.formatFieldName(field.name));
-      const fieldType = typeof field === 'string' ? 'string' : this.mapFieldTypeToJsonSchema(field.type || 'text');
+      const fieldType = typeof field === 'string' ? 'text' : (field.type || 'text');
       const fieldRequired = typeof field === 'string' ? false : (field.required || false);
+      const fieldPlaceholder = typeof field === 'string' ? `Enter ${this.formatFieldName(field).toLowerCase()}` : (field.placeholder || '');
       
       (schema.properties as any)[fieldName] = {
-        type: fieldType,
+        type: this.mapFieldTypeToJsonSchema(fieldType),
         title: fieldLabel,
       };
+      
+      // Add to fields array for frontend form rendering
+      schema.fields.push({
+        name: fieldName,
+        label: fieldLabel,
+        type: fieldType,
+        required: fieldRequired,
+        placeholder: fieldPlaceholder,
+      });
       
       if (fieldRequired) {
         schema.required.push(fieldName);
       }
     }
+
+    console.log('[OutputModeService] Generated JSON schema with fields:', schema.fields);
 
     return {
       mode: OutputMode.JSON_SCHEMA,
