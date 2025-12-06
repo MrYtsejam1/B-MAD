@@ -1,11 +1,13 @@
-import Tesseract from 'tesseract.js';
+import { InferenceClient } from '@huggingface/inference';
 import sharp from 'sharp';
 import { PDFParse } from 'pdf-parse';
-import { OCRRequest, OCRResult, OCRConfig, InvoiceData } from '../models/ocr.model';
-import { OCRParserService } from './ocr-parser.service';
+import { OCRRequest, OCRResult, OCRConfig, InvoiceData, FieldData } from '../models/ocr.model';
+
+// Vision-language model for OCR extraction
+const VL_MODEL = 'Qwen/Qwen2.5-VL-7B-Instruct';
 
 export class OCRService {
-  private readonly parser: OCRParserService;
+  private hf: InferenceClient | null = null;
   private readonly config: OCRConfig = {
     language: 'eng+heb', // Support both English and Hebrew for invoices
     confidenceThreshold: 0.7,
@@ -14,7 +16,13 @@ export class OCRService {
   };
 
   constructor() {
-    this.parser = new OCRParserService();
+    const token = process.env.HF_TOKEN;
+    if (token && token !== 'demo_key_not_configured') {
+      this.hf = new InferenceClient(token);
+      console.log('[OCR] Hugging Face Inference client initialized for vision model');
+    } else {
+      console.warn('[OCR] No HF_TOKEN configured, OCR will not work');
+    }
   }
 
   async processReceipt(request: OCRRequest): Promise<OCRResult> {
@@ -23,33 +31,44 @@ export class OCRService {
     try {
       this.validateFile(request);
       
-      // Handle PDFs separately - extract text directly without OCR
-      if (request.mimeType === 'application/pdf') {
-        return await this.processPdf(request.imageBuffer, startTime);
+      if (!this.hf) {
+        throw new Error('OCR service not configured. Please set HF_TOKEN environment variable.');
       }
       
-      // For images, use Tesseract OCR
-      const preprocessedImage = await this.preprocessImage(request.imageBuffer);
-      const ocrResult = await this.extractText(preprocessedImage);
-      const invoiceData = this.parser.parseInvoice(
-        ocrResult.text,
-        ocrResult.confidence,
-        this.config.confidenceThreshold,
-      );
-
+      // Convert PDF to image if needed
+      let imageBuffer = request.imageBuffer;
+      let mimeType = request.mimeType;
+      
+      if (mimeType === 'application/pdf') {
+        console.log('[OCR] Converting PDF to image for vision model');
+        const converted = await this.convertPdfToImage(request.imageBuffer);
+        imageBuffer = converted.buffer;
+        mimeType = converted.mimeType;
+      }
+      
+      // Preprocess and encode image for vision model
+      const processedImage = await this.preprocessImage(imageBuffer);
+      const base64Image = processedImage.toString('base64');
+      const dataUrl = `data:${mimeType};base64,${base64Image}`;
+      
+      // Call vision-language model to extract invoice data
+      console.log('[OCR] Calling Qwen2.5-VL vision model for invoice extraction');
+      const invoiceData = await this.extractWithVisionModel(dataUrl);
+      
       const processingTime = Date.now() - startTime;
+      console.log(`[OCR] Vision model extraction completed in ${processingTime}ms`);
 
       return {
         success: true,
-        rawText: ocrResult.text,
-        confidence: ocrResult.confidence / 100,
+        rawText: JSON.stringify(invoiceData, null, 2),
+        confidence: 0.9, // Vision models generally have high confidence
         invoice: invoiceData,
         processingTime,
-        warnings: this.generateWarnings(invoiceData, ocrResult.confidence),
+        warnings: this.generateWarnings(invoiceData, 90),
       };
     } catch (error: any) {
       const processingTime = Date.now() - startTime;
-      console.error(`OCR failed: ${error.message}`, error.stack);
+      console.error(`[OCR] Vision model extraction failed: ${error.message}`, error.stack);
 
       return {
         success: false,
@@ -62,147 +81,152 @@ export class OCRService {
   }
   
   /**
-   * Process PDF files by extracting embedded text directly
-   * If no meaningful text is found, fall back to image extraction + OCR
+   * Extract invoice data using Qwen2.5-VL vision-language model
+   * The model reads the invoice image and returns structured JSON
    */
-  private async processPdf(pdfBuffer: Buffer, startTime: number): Promise<OCRResult> {
+  private async extractWithVisionModel(imageDataUrl: string): Promise<InvoiceData> {
+    const prompt = `You are an OCR and invoice data extraction assistant. Analyze this invoice image (which may be in Hebrew or English) and extract the following information.
+
+Return ONLY a valid JSON object with these exact fields (use null for any field you cannot find):
+{
+  "invoiceDate": "YYYY-MM-DD format date or null",
+  "amount": number (the total amount to pay, as a number without currency symbols) or null,
+  "currency": "ILS" or "USD" or "EUR" or null,
+  "vendor": "business/vendor name string" or null,
+  "invoiceNumber": "invoice/receipt number string" or null,
+  "category": "food" or "parking" or "hotel" or "flight" or "conference" or "other" or null
+}
+
+Important:
+- For Hebrew invoices, look for "סה"כ לתשלום" or "סה"כ" for the total amount
+- For invoice number, look for "מספר חשבונית", "מספר מסמך", "קבלה מס'" in Hebrew
+- For vendor name, look for the business name at the top of the invoice
+- Return ONLY the JSON object, no explanations or additional text`;
+
     try {
-      console.log('[OCR] Processing PDF - extracting embedded text');
-      const parser = new PDFParse({ data: pdfBuffer });
-      const textResult = await parser.getText({ pageJoiner: '\n' });
-      const text = textResult.text;
+      const response = await this.hf!.chatCompletion({
+        model: VL_MODEL,
+        messages: [
+          {
+            role: 'user',
+            content: [
+              { type: 'text', text: prompt },
+              { type: 'image_url', image_url: { url: imageDataUrl } }
+            ] as any
+          }
+        ],
+        max_tokens: 500,
+        temperature: 0.1, // Low temperature for more deterministic extraction
+      });
+
+      const content = response.choices[0]?.message?.content || '';
+      console.log('[OCR] Vision model raw response:', content);
       
-      console.log(`[OCR] Extracted ${text.length} characters from PDF`);
-      console.log(`[OCR] First 200 chars: ${text.substring(0, 200)}`);
-      
-      // Check if extracted text is meaningful (has digits and reasonable length)
-      // Scanned PDFs often only have page markers like "-- 1 of 1 --"
-      const hasDigits = /\d/.test(text);
-      const hasInvoiceKeywords = /(₪|ש"ח|NIS|USD|EUR|\$|invoice|חשבונית|סכום|total|amount|date|תאריך)/i.test(text);
-      const isMeaningfulText = text.trim().length > 50 && hasDigits && hasInvoiceKeywords;
-      
-      if (!isMeaningfulText) {
-        console.log('[OCR] PDF text not meaningful, falling back to image extraction + OCR');
-        return await this.processPdfWithImageOcr(parser, startTime);
+      // Parse the JSON response
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) {
+        throw new Error('Vision model did not return valid JSON');
       }
       
-      // Parse the extracted text for invoice data
-      // Use high confidence since text is directly extracted, not OCR'd
-      const invoiceData = this.parser.parseInvoice(text, 95, this.config.confidenceThreshold);
-      const processingTime = Date.now() - startTime;
+      const extracted = JSON.parse(jsonMatch[0]);
+      console.log('[OCR] Parsed extraction:', extracted);
       
-      return {
-        success: true,
-        rawText: text,
-        confidence: 0.95, // High confidence for direct text extraction
-        invoice: invoiceData,
-        processingTime,
-        warnings: this.generateWarnings(invoiceData, 95),
-      };
+      // Convert to InvoiceData format with FieldData structure
+      return this.convertToInvoiceData(extracted);
     } catch (error: any) {
-      console.error(`[OCR] PDF parsing failed: ${error.message}`);
-      return {
-        success: false,
-        rawText: '',
-        confidence: 0,
-        processingTime: Date.now() - startTime,
-        errors: [`Failed to extract text from PDF: ${error.message}`],
-      };
+      console.error('[OCR] Vision model call failed:', error.message);
+      throw new Error(`Vision model extraction failed: ${error.message}`);
     }
   }
   
   /**
-   * Fall back to extracting images from PDF and running Tesseract OCR
-   * Used when PDF has no embedded text (scanned documents)
-   * If no embedded images found, renders the page as a screenshot
+   * Convert raw extracted JSON to InvoiceData format with FieldData structure
    */
-  private async processPdfWithImageOcr(parser: PDFParse, startTime: number): Promise<OCRResult> {
-    try {
-      console.log('[OCR] Extracting images from PDF for OCR');
-      const imageResult = await parser.getImage({ 
-        imageBuffer: true, 
-        imageDataUrl: false,
-        first: 1, // Only process first page for invoices
-        imageThreshold: 0, // Include all images
-      });
-      
-      console.log(`[OCR] getImage result: ${imageResult.pages.length} pages`);
-      if (imageResult.pages.length > 0) {
-        console.log(`[OCR] First page has ${imageResult.pages[0].images.length} images`);
-      }
-      
-      let imageBuffer: Buffer;
-      
-      if (imageResult.pages.length > 0 && imageResult.pages[0].images.length > 0) {
-        // Find the largest image (most likely the main invoice content)
-        let largestImage = imageResult.pages[0].images[0];
-        for (const image of imageResult.pages[0].images) {
-          if (image.width * image.height > largestImage.width * largestImage.height) {
-            largestImage = image;
-          }
-        }
-        console.log(`[OCR] Using embedded image: ${largestImage.width}x${largestImage.height}`);
-        imageBuffer = Buffer.from(largestImage.data);
-      } else {
-        // No embedded images - render the page as a screenshot
-        console.log('[OCR] No embedded images found, rendering page as screenshot');
-        const screenshotResult = await parser.getScreenshot({
-          first: 1,
-          imageBuffer: true,
-          imageDataUrl: false,
-          desiredWidth: 1200, // Good resolution for OCR
-        });
-        
-        if (!screenshotResult.pages.length) {
-          return {
-            success: false,
-            rawText: '',
-            confidence: 0,
-            processingTime: Date.now() - startTime,
-            errors: ['PDF contains no extractable content. Please upload a screenshot or image of the invoice instead.'],
-          };
-        }
-        
-        const screenshot = screenshotResult.pages[0];
-        console.log(`[OCR] Screenshot rendered: ${screenshot.width}x${screenshot.height}`);
-        imageBuffer = Buffer.from(screenshot.data);
-      }
-      
-      // Run through Tesseract OCR
-      const preprocessedImage = await this.preprocessImage(imageBuffer);
-      const ocrResult = await this.extractText(preprocessedImage);
-      
-      console.log(`[OCR] Tesseract extracted ${ocrResult.text.length} characters from PDF`);
-      console.log(`[OCR] First 300 chars: ${ocrResult.text.substring(0, 300)}`);
-      
-      const invoiceData = this.parser.parseInvoice(
-        ocrResult.text,
-        ocrResult.confidence,
-        this.config.confidenceThreshold,
-      );
-      
-      const processingTime = Date.now() - startTime;
-      
-      return {
-        success: true,
-        rawText: ocrResult.text,
-        confidence: ocrResult.confidence / 100,
-        invoice: invoiceData,
-        processingTime,
-        warnings: this.generateWarnings(invoiceData, ocrResult.confidence),
-      };
-    } catch (error: any) {
-      console.error(`[OCR] PDF image extraction failed: ${error.message}`);
-      return {
-        success: false,
-        rawText: '',
-        confidence: 0,
-        processingTime: Date.now() - startTime,
-        errors: [`Failed to extract images from PDF: ${error.message}. Please upload a screenshot or image of the invoice instead.`],
+  private convertToInvoiceData(extracted: any): InvoiceData {
+    const result: InvoiceData = {};
+    
+    if (extracted.invoiceDate) {
+      result.date = {
+        value: extracted.invoiceDate,
+        confidence: 0.9,
+        needsReview: false,
       };
     }
+    
+    if (extracted.amount != null) {
+      result.amount = {
+        value: String(extracted.amount),
+        confidence: 0.9,
+        needsReview: false,
+      };
+    }
+    
+    if (extracted.currency) {
+      result.currency = {
+        value: extracted.currency,
+        confidence: 0.9,
+        needsReview: false,
+      };
+    }
+    
+    if (extracted.vendor) {
+      result.vendor = {
+        value: extracted.vendor,
+        confidence: 0.9,
+        needsReview: false,
+      };
+    }
+    
+    if (extracted.invoiceNumber) {
+      result.invoiceNumber = {
+        value: extracted.invoiceNumber,
+        confidence: 0.9,
+        needsReview: false,
+      };
+    }
+    
+    if (extracted.category) {
+      result.category = {
+        value: extracted.category,
+        confidence: 0.8,
+        needsReview: false,
+      };
+    }
+    
+    return result;
   }
-
+  
+  /**
+   * Convert PDF to image for vision model processing
+   */
+  private async convertPdfToImage(pdfBuffer: Buffer): Promise<{ buffer: Buffer; mimeType: string }> {
+    try {
+      const parser = new PDFParse({ data: pdfBuffer });
+      
+      // Try to render the page as a screenshot
+      const screenshotResult = await parser.getScreenshot({
+        first: 1,
+        imageBuffer: true,
+        imageDataUrl: false,
+        desiredWidth: 1200,
+      });
+      
+      if (screenshotResult.pages.length > 0) {
+        const screenshot = screenshotResult.pages[0];
+        console.log(`[OCR] PDF rendered to image: ${screenshot.width}x${screenshot.height}`);
+        return {
+          buffer: Buffer.from(screenshot.data),
+          mimeType: 'image/png',
+        };
+      }
+      
+      throw new Error('Could not render PDF page');
+    } catch (error: any) {
+      console.error('[OCR] PDF to image conversion failed:', error.message);
+      throw new Error(`Failed to convert PDF to image: ${error.message}`);
+    }
+  }
+  
   private validateFile(request: OCRRequest): void {
     if (!request.imageBuffer || request.imageBuffer.length === 0) {
       throw new Error('Image buffer is empty');
@@ -217,41 +241,24 @@ export class OCRService {
     }
   }
 
+  /**
+   * Preprocess image for better vision model results
+   * Keep color for vision models (unlike Tesseract which prefers grayscale)
+   */
   private async preprocessImage(imageBuffer: Buffer): Promise<Buffer> {
     try {
       const processed = await sharp(imageBuffer)
-        .grayscale()
-        .normalize() // Enhance contrast
-        .resize(2000, 2000, {
+        .resize(1600, 1600, {
           fit: 'inside',
           withoutEnlargement: true,
         })
+        .jpeg({ quality: 85 }) // Convert to JPEG for smaller base64 size
         .toBuffer();
 
       return processed;
     } catch (error: any) {
-      console.warn(`Image preprocessing failed: ${error.message}`);
+      console.warn(`[OCR] Image preprocessing failed: ${error.message}`);
       return imageBuffer;
-    }
-  }
-
-  private async extractText(imageBuffer: Buffer): Promise<{ text: string; confidence: number }> {
-    try {
-      const result = await Tesseract.recognize(imageBuffer, this.config.language, {
-        logger: (m: any) => {
-          if (m.status === 'recognizing text') {
-            console.log(`OCR progress: ${Math.round(m.progress * 100)}%`);
-          }
-        },
-      });
-
-      return {
-        text: result.data.text,
-        confidence: result.data.confidence,
-      };
-    } catch (error: any) {
-      console.error(`Tesseract OCR failed: ${error.message}`);
-      throw new Error('OCR text extraction failed');
     }
   }
 
