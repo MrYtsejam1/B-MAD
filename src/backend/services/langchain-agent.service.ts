@@ -2,11 +2,19 @@ import { HfInference } from '@huggingface/inference';
 import { AgentRequest, AgentResponse, IntentType, ComplexityLevel, AgentEvent } from '../models/agent.model';
 import { AgentToolsService } from './agent-tools.service';
 import { OutputModeService } from './output-mode.service';
+import { SessionService } from './session.service';
+import { 
+  AgentSession, 
+  SessionStartRequest, 
+  SessionMessageRequest, 
+  SessionResponse
+} from '../models/session.model';
 
 export class LangChainAgentService {
   private hf: HfInference;
   private tools: AgentToolsService;
   private outputMode: OutputModeService;
+  private sessionService: SessionService;
   private readonly models = {
     intent: 'agentica-org/DeepCoder-14B-Preview:featherless-ai',
     generation: 'Qwen/Qwen2.5-Coder-7B-Instruct:featherless-ai',
@@ -15,11 +23,29 @@ export class LangChainAgentService {
 
   private initialized: boolean = false;
 
+  private readonly fieldQuestions: Record<string, string> = {
+    date: 'What date was this expense?',
+    amount: 'What was the total amount?',
+    currency: 'What currency was used?',
+    purpose: 'What was the purpose of this expense?',
+    category: 'What category does this fall under (meals, travel, supplies, software, other)?',
+    destination: 'Where are you traveling to?',
+    origin: 'Where are you traveling from?',
+    startDate: 'When does your trip start?',
+    endDate: 'When does your trip end?',
+    travelers: 'How many travelers will there be?',
+    vendor: 'Who was the vendor or merchant?',
+    flightDate: 'What is the date of your flight?',
+    departureCity: 'What city are you departing from?',
+    arrivalCity: 'What city are you arriving at?',
+  };
+
   constructor() {
     const hfToken = process.env.HF_TOKEN || 'demo_key_not_configured';
     this.hf = new HfInference(hfToken);
     this.tools = new AgentToolsService();
     this.outputMode = new OutputModeService();
+    this.sessionService = new SessionService();
   }
 
   private async ensureInitialized(): Promise<void> {
@@ -477,7 +503,188 @@ Return ONLY the JSON object, no other text:`;
     };
   }
 
-  private emitEvent(callback: ((event: AgentEvent) => void) | undefined, type: AgentEvent['type'], data?: any): void {
+  async startSession(
+    request: SessionStartRequest, 
+    eventCallback?: (event: AgentEvent) => void
+  ): Promise<SessionResponse> {
+    await this.ensureInitialized();
+    
+    this.emitEvent(eventCallback, 'analyzing', { message: 'Analyzing your request...' });
+
+    const intent = await this.classifyIntent(request.userInput);
+    console.log('[LangChainAgent] Session start - Detected intent:', intent);
+    
+    const complexity = this.detectComplexity(request.userInput, intent);
+    console.log('[LangChainAgent] Session start - Detected complexity:', complexity);
+
+    const session = await this.sessionService.createSession(request, intent, complexity);
+
+    if (session.mcpServerId) {
+      const capabilities = await this.tools.mcpDescribe(session.mcpServerId);
+      const requiredFields = capabilities.requirements?.requiredFields || [];
+      await this.sessionService.setRequiredFields(session, requiredFields);
+    }
+
+    const extractedData = await this.extractDataFromInput(request.userInput, intent);
+    if (extractedData) {
+      await this.sessionService.setExtractedData(session, extractedData);
+    }
+
+    const updatedSession = await this.sessionService.getSession(session.id);
+    if (!updatedSession) {
+      throw new Error('Session not found after creation');
+    }
+
+    if (complexity === ComplexityLevel.SIMPLE && this.sessionService.isSessionComplete(updatedSession)) {
+      this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
+      const formOutput = await this.generateOutput(request.userInput, intent, complexity);
+      this.emitEvent(eventCallback, 'complete', formOutput);
+      
+      return this.sessionService.buildSessionResponse(updatedSession, 'generate', undefined, formOutput);
+    }
+
+    const questionResult = this.sessionService.getNextQuestion(updatedSession, this.fieldQuestions);
+    
+    if (questionResult.question) {
+      await this.sessionService.incrementQuestionNumber(updatedSession);
+      await this.sessionService.addAgentMessage(updatedSession, questionResult.question, { 
+        questionField: questionResult.field || undefined 
+      });
+      
+      this.emitEvent(eventCallback, 'question', { 
+        question: questionResult.question,
+        questionNumber: updatedSession.questionNumber,
+        maxQuestions: updatedSession.maxQuestions,
+        sessionId: updatedSession.id,
+      });
+      
+      return this.sessionService.buildSessionResponse(updatedSession, 'clarify', questionResult);
+    }
+
+    this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
+    const formOutput = await this.generateOutput(request.userInput, intent, complexity);
+    this.emitEvent(eventCallback, 'complete', formOutput);
+    
+    return this.sessionService.buildSessionResponse(updatedSession, 'generate', undefined, formOutput);
+  }
+
+  async continueSession(
+    request: SessionMessageRequest,
+    eventCallback?: (event: AgentEvent) => void
+  ): Promise<SessionResponse> {
+    await this.ensureInitialized();
+
+    const session = await this.sessionService.getSession(request.sessionId);
+    if (!session) {
+      throw new Error(`Session not found: ${request.sessionId}`);
+    }
+
+    const lastAgentMessage = [...session.messages].reverse().find(m => m.role === 'agent');
+    const lastQuestionField = lastAgentMessage?.metadata?.questionField || null;
+
+    if (session.intent === IntentType.UNKNOWN || session.intent === IntentType.CLARIFICATION) {
+      const inferredIntent = await this.inferIntentFromAnswer(request.answer);
+      console.log('[LangChainAgent] Inferred intent from answer:', inferredIntent);
+      
+      if (inferredIntent !== IntentType.UNKNOWN) {
+        await this.sessionService.updateSessionIntent(session, inferredIntent);
+        
+        if (session.mcpServerId) {
+          const capabilities = await this.tools.mcpDescribe(session.mcpServerId);
+          const requiredFields = capabilities.requirements?.requiredFields || [];
+          await this.sessionService.setRequiredFields(session, requiredFields);
+        }
+      }
+    }
+
+    await this.sessionService.updateSessionWithAnswer(session, request.answer, lastQuestionField);
+
+    const updatedSession = await this.sessionService.getSession(session.id);
+    if (!updatedSession) {
+      throw new Error('Session not found after update');
+    }
+
+    if (this.sessionService.isSessionComplete(updatedSession)) {
+      this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
+      
+      const userInput = this.buildUserInputFromSession(updatedSession);
+      const formOutput = await this.generateOutput(userInput, updatedSession.intent, updatedSession.complexity);
+      
+      this.emitEvent(eventCallback, 'complete', formOutput);
+      
+      return this.sessionService.buildSessionResponse(updatedSession, 'generate', undefined, formOutput);
+    }
+
+    const questionResult = this.sessionService.getNextQuestion(updatedSession, this.fieldQuestions);
+    
+    if (questionResult.question) {
+      await this.sessionService.incrementQuestionNumber(updatedSession);
+      await this.sessionService.addAgentMessage(updatedSession, questionResult.question, {
+        questionField: questionResult.field || undefined
+      });
+      
+      this.emitEvent(eventCallback, 'question', {
+        question: questionResult.question,
+        questionNumber: updatedSession.questionNumber,
+        maxQuestions: updatedSession.maxQuestions,
+        sessionId: updatedSession.id,
+      });
+      
+      return this.sessionService.buildSessionResponse(updatedSession, 'clarify', questionResult);
+    }
+
+    this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
+    const userInput = this.buildUserInputFromSession(updatedSession);
+    const formOutput = await this.generateOutput(userInput, updatedSession.intent, updatedSession.complexity);
+    this.emitEvent(eventCallback, 'complete', formOutput);
+    
+    return this.sessionService.buildSessionResponse(updatedSession, 'generate', undefined, formOutput);
+  }
+
+  private async extractDataFromInput(userInput: string, intent: IntentType): Promise<Record<string, unknown> | null> {
+    if (intent === IntentType.TRAVEL_BOOKING) {
+      return await this.extractTravelDetails(userInput);
+    }
+    if (intent === IntentType.INVOICE_SUBMISSION) {
+      return await this.extractInvoiceDetails(userInput);
+    }
+    return null;
+  }
+
+  private async inferIntentFromAnswer(answer: string): Promise<IntentType> {
+    const lowerAnswer = answer.toLowerCase();
+    
+    if (lowerAnswer.includes('expense') || lowerAnswer.includes('invoice') || lowerAnswer.includes('receipt') || lowerAnswer.includes('submit')) {
+      return IntentType.INVOICE_SUBMISSION;
+    }
+    if (lowerAnswer.includes('travel') || lowerAnswer.includes('trip') || lowerAnswer.includes('flight') || lowerAnswer.includes('hotel')) {
+      return IntentType.TRAVEL_BOOKING;
+    }
+    if (lowerAnswer.includes('form') || lowerAnswer.includes('create') || lowerAnswer.includes('custom')) {
+      return IntentType.GENERAL_FORM;
+    }
+    
+    return IntentType.UNKNOWN;
+  }
+
+  private buildUserInputFromSession(session: AgentSession): string {
+    const parts: string[] = [];
+    
+    const firstUserMessage = session.messages.find(m => m.role === 'user');
+    if (firstUserMessage) {
+      parts.push(firstUserMessage.content);
+    }
+    
+    for (const [field, value] of Object.entries(session.answers)) {
+      if (value && typeof value === 'string') {
+        parts.push(`${field}: ${value}`);
+      }
+    }
+    
+    return parts.join('. ');
+  }
+
+  private emitEvent(callback: ((event: AgentEvent) => void) | undefined, type: AgentEvent['type'], data?: unknown): void {
     if (callback) {
       callback({
         type,
