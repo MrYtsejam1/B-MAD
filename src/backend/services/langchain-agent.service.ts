@@ -519,6 +519,12 @@ Return ONLY the JSON object, no other text:`;
 
     const session = await this.sessionService.createSession(request, intent, complexity);
 
+    this.emitEvent(eventCallback, 'session_started', { 
+      sessionId: session.id,
+      intent,
+      complexity 
+    });
+
     if (session.mcpServerId) {
       const capabilities = await this.tools.mcpDescribe(session.mcpServerId);
       const requiredFields = capabilities.requirements?.requiredFields || [];

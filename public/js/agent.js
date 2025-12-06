@@ -2,14 +2,133 @@
 class AgentClient {
     constructor() {
         this.currentStream = null;
-        this.sessionId = this.generateSessionId();
+        this.sessionId = null;
+        this.conversationMode = 'session'; // 'session' for new conversational flow, 'legacy' for old flow
     }
 
-    generateSessionId() {
-        return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    async startSession(userInput, model, context = {}) {
+        if (this.currentStream) {
+            console.log('Aborting previous stream');
+            this.currentStream.abort();
+        }
+
+        this.currentStream = new AbortController();
+        this.sessionId = null;
+        
+        console.log('🤖 CHAT MODE: Starting session at /api/v1/session/start');
+        console.log('Selected model:', model);
+
+        try {
+            const response = await fetch('/api/v1/session/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer demo_token'
+                },
+                body: JSON.stringify({
+                    userInput,
+                    mode: 'chat',
+                    scenario: context.mcpServer || 'auto'
+                }),
+                signal: this.currentStream.signal
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            await this.processStreamResponse(response);
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log('Stream aborted');
+            } else {
+                console.error('Session start error:', error);
+                this.onEvent('error', { message: error.message });
+            }
+        } finally {
+            this.currentStream = null;
+        }
+    }
+
+    async continueSession(answer) {
+        if (!this.sessionId) {
+            console.error('No active session to continue');
+            this.onEvent('error', { message: 'No active session' });
+            return;
+        }
+
+        if (this.currentStream) {
+            this.currentStream.abort();
+        }
+
+        this.currentStream = new AbortController();
+        
+        console.log('🤖 CHAT MODE: Continuing session at /api/v1/session/message');
+        console.log('Session ID:', this.sessionId);
+        console.log('Answer:', answer);
+
+        try {
+            const response = await fetch('/api/v1/session/message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer demo_token'
+                },
+                body: JSON.stringify({
+                    sessionId: this.sessionId,
+                    answer
+                }),
+                signal: this.currentStream.signal
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            await this.processStreamResponse(response);
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log('Stream aborted');
+            } else {
+                console.error('Session continue error:', error);
+                this.onEvent('error', { message: error.message });
+            }
+        } finally {
+            this.currentStream = null;
+        }
+    }
+
+    async processStreamResponse(response) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) {
+                console.log('Stream complete');
+                break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            
+            const frames = buffer.split('\n\n');
+            buffer = frames.pop() || '';
+
+            for (const frame of frames) {
+                if (frame.trim()) {
+                    this.processFrame(frame);
+                }
+            }
+        }
     }
 
     async startStream(userInput, model, context = {}) {
+        if (this.conversationMode === 'session') {
+            return this.startSession(userInput, model, context);
+        }
+
         if (this.currentStream) {
             console.log('Aborting previous stream');
             this.currentStream.abort();
@@ -17,7 +136,7 @@ class AgentClient {
 
         this.currentStream = new AbortController();
         
-        console.log('🤖 ADVANCED MODE: Starting SSE stream to /api/v1/agent/stream');
+        console.log('🤖 LEGACY MODE: Starting SSE stream to /api/v1/agent/stream');
         console.log('Selected model:', model);
         console.log('Context:', context);
 
@@ -30,7 +149,7 @@ class AgentClient {
                 },
                 body: JSON.stringify({
                     userInput,
-                    sessionId: this.sessionId,
+                    sessionId: 'legacy_' + Date.now(),
                     context: {
                         ...context,
                         model
@@ -43,29 +162,7 @@ class AgentClient {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                
-                if (done) {
-                    console.log('Stream complete');
-                    break;
-                }
-
-                buffer += decoder.decode(value, { stream: true });
-                
-                const frames = buffer.split('\n\n');
-                buffer = frames.pop() || ''; // Keep incomplete frame in buffer
-
-                for (const frame of frames) {
-                    if (frame.trim()) {
-                        this.processFrame(frame);
-                    }
-                }
-            }
+            await this.processStreamResponse(response);
         } catch (error) {
             if (error.name === 'AbortError') {
                 console.log('Stream aborted');
@@ -157,8 +254,19 @@ class AgentUI {
                 this.addLogEntry('agent', '⚙️ ' + (data.message || 'Generating form...'));
                 break;
 
+            case 'session_started':
+                if (data.sessionId) {
+                    this.client.sessionId = data.sessionId;
+                    console.log('Session started:', data.sessionId);
+                }
+                break;
+
             case 'question':
-                this.handleQuestions(data.questions);
+                if (data.question) {
+                    this.handleSingleQuestion(data);
+                } else if (data.questions) {
+                    this.handleQuestions(data.questions);
+                }
                 break;
 
             case 'complete':
@@ -198,6 +306,49 @@ class AgentUI {
         
         streamLog.appendChild(entry);
         streamLog.scrollTop = streamLog.scrollHeight;
+    }
+
+    handleSingleQuestion(data) {
+        const { question, questionNumber, maxQuestions } = data;
+        
+        const progressText = maxQuestions ? ` (${questionNumber}/${maxQuestions})` : '';
+        this.addLogEntry('agent', `❓${progressText} ${question}`);
+
+        const streamLog = document.getElementById('agentStreamLog');
+        const questionContainer = document.createElement('div');
+        questionContainer.className = 'chat-question-container';
+        questionContainer.innerHTML = `
+            <div class="chat-input-row">
+                <input type="text" id="chatAnswer" class="chat-answer-input" placeholder="Type your answer..." autofocus>
+                <button class="btn chat-send-btn" id="sendAnswer">Send</button>
+            </div>
+        `;
+
+        streamLog.appendChild(questionContainer);
+        streamLog.scrollTop = streamLog.scrollHeight;
+
+        const sendAnswer = () => {
+            const input = document.getElementById('chatAnswer');
+            const answer = input?.value?.trim();
+            
+            if (!answer) {
+                return;
+            }
+
+            questionContainer.remove();
+            this.addLogEntry('user', answer);
+            this.client.continueSession(answer);
+        };
+
+        document.getElementById('sendAnswer').addEventListener('click', sendAnswer);
+        document.getElementById('chatAnswer').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendAnswer();
+            }
+        });
+
+        document.getElementById('chatAnswer')?.focus();
     }
 
     handleQuestions(questions) {
