@@ -215,8 +215,8 @@ export class SessionService {
 
   buildSessionResponse(
     session: AgentSession, 
-    action: 'clarify' | 'generate',
-    questionResult?: QuestionResult,
+    action: 'clarify' | 'generate' | 'file_upload',
+    questionResult?: QuestionResult | { message: string; accept: string; endpoint: string },
     formOutput?: unknown
   ): SessionResponse {
     // Use combined data (extractedData + answers) so UI shows user's responses
@@ -231,9 +231,17 @@ export class SessionService {
       extractedData: combinedData,
     };
 
-    if (action === 'clarify' && questionResult?.question) {
+    if (action === 'clarify' && questionResult && 'question' in questionResult && questionResult.question) {
       response.question = questionResult.question;
       response.questionNumber = session.questionNumber;
+    }
+
+    if (action === 'file_upload' && questionResult && 'message' in questionResult) {
+      response.fileUpload = {
+        message: questionResult.message,
+        accept: questionResult.accept,
+        endpoint: questionResult.endpoint,
+      };
     }
 
     if (action === 'generate' && formOutput) {

@@ -360,14 +360,23 @@ Today's date is ${todayIso} (YYYY-MM-DD).
 
 Extract the details and return ONLY a JSON object with this shape:
 {
+  "workerName": "name of the person making the request or null",
   "origin": "departure city or null",
   "destination": "arrival city or null",
   "startDate": "departure date in ISO 8601 format YYYY-MM-DD or null",
   "endDate": "return date in ISO 8601 format YYYY-MM-DD or null",
   "flights": "flight numbers as comma-separated string or null",
   "hotel": "hotel name if mentioned or null",
-  "travelers": "traveler names or count or null"
+  "travelers": "comma-separated list of ALL traveler names or null"
 }
+
+VERY IMPORTANT NAME EXTRACTION RULES:
+- Extract the worker's name from patterns like "אני [שם]" (I am [name]), "שמי [שם]" (my name is [name]), "I'm [name]", "I am [name]"
+- Extract traveler names from patterns like "נוסע עם [שם]" (traveling with [name]), "עם [שם]" (with [name]), "traveling with [name]"
+- If the user says "אני דוד גואטה" -> workerName is "דוד גואטה"
+- If the user says "נוסע עם yosi yehuda" -> include "yosi yehuda" in travelers
+- The travelers field should include ALL people traveling, including the worker if they are traveling
+- Example: "אני דוד גואטה, נוסע עם yosi yehuda" -> workerName: "דוד גואטה", travelers: "דוד גואטה, yosi yehuda"
 
 VERY IMPORTANT DATE RULES:
 - You MUST convert ALL dates to absolute calendar dates in ISO 8601 format (YYYY-MM-DD).
@@ -379,9 +388,9 @@ VERY IMPORTANT DATE RULES:
 - If you cannot determine a date, use null for that field.
 
 Examples (today is ${todayIso}):
-1) "אני טס מחר וחוזר בעוד 5 ימים" -> startDate is tomorrow, endDate is 5 days after startDate
+1) "אני דוד גואטה, טס מחר עם yosi" -> workerName: "דוד גואטה", travelers: "דוד גואטה, yosi", startDate: tomorrow
 2) "יש לי טיסה ב-10 לינואר" -> startDate is the next January 10th in YYYY-MM-DD format
-3) "בחודש הבא יש לי נסיעה" -> use the 1st of next month if no specific date given
+3) "אני משה נוסע עם דני לרומא" -> workerName: "משה", travelers: "משה, דני", destination: "רומא"
 
 Text: "${userInput}"
 
@@ -429,6 +438,12 @@ Extract the details and return ONLY a JSON object with this shape:
   "purpose": "purpose or description of the expense or null"
 }
 
+VERY IMPORTANT NAME EXTRACTION RULES:
+- Extract the worker's name from patterns like "אני [שם]" (I am [name]), "שמי [שם]" (my name is [name]), "I'm [name]", "I am [name]"
+- If the user says "אני דוד גואטה" -> workerName is "דוד גואטה"
+- If the user says "I'm John Smith" -> workerName is "John Smith"
+- Look for name patterns at the beginning of the text or after phrases like "אני", "שמי", "I am", "I'm"
+
 VERY IMPORTANT DATE RULES:
 - You MUST convert ALL dates to absolute calendar dates in ISO 8601 format (YYYY-MM-DD).
 - Do NOT return relative words like "אתמול", "היום", "בשבוע שעבר", "לפני יומיים" in the date field.
@@ -439,9 +454,9 @@ VERY IMPORTANT DATE RULES:
 - If you cannot determine a date, use null for that field.
 
 Examples (today is ${todayIso}):
-1) "יש לי חשבונית מאתמול" -> date is yesterday's date in YYYY-MM-DD format
+1) "אני דוד, יש לי חשבונית מאתמול" -> workerName: "דוד", date: yesterday's date
 2) "הוצאה מלפני שבוע" -> date is 7 days before today in YYYY-MM-DD format
-3) "חשבונית מה-15 לחודש" -> date is the 15th of the current or previous month
+3) "אני משה כהן, רוצה להגיש חשבונית על ארוחה" -> workerName: "משה כהן", category: "food"
 
 Text: "${userInput}"
 
@@ -675,6 +690,24 @@ Return ONLY the JSON object, no other text:`;
       throw new Error('Session not found after creation');
     }
 
+    // For invoice submissions, show file upload dialog first to extract data via OCR
+    // before asking any clarifying questions
+    if (intent === IntentType.INVOICE_SUBMISSION && !updatedSession.extractedData?.ocrProcessed) {
+      console.log('[LangChainAgent] Invoice detected - requesting file upload for OCR');
+      this.emitEvent(eventCallback, 'file_upload_request', {
+        sessionId: updatedSession.id,
+        message: 'Please upload your invoice/receipt to extract details automatically',
+        accept: 'image/*,application/pdf',
+        endpoint: '/api/v1/ocr/invoice',
+      });
+      
+      return this.sessionService.buildSessionResponse(updatedSession, 'file_upload', {
+        message: 'Please upload your invoice/receipt to extract details automatically',
+        accept: 'image/*,application/pdf',
+        endpoint: '/api/v1/ocr/invoice',
+      });
+    }
+
     if (complexity === ComplexityLevel.SIMPLE && this.sessionService.isSessionComplete(updatedSession)) {
       this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
       const rawFormOutput = await this.generateOutput(request.userInput, intent, complexity);
@@ -721,6 +754,31 @@ Return ONLY the JSON object, no other text:`;
     const session = await this.sessionService.getSession(request.sessionId);
     if (!session) {
       throw new Error(`Session not found: ${request.sessionId}`);
+    }
+
+    // Handle OCR processed response from file upload
+    if (request.answer.startsWith('OCR_PROCESSED:')) {
+      const ocrDataJson = request.answer.substring('OCR_PROCESSED:'.length);
+      try {
+        const ocrData = JSON.parse(ocrDataJson);
+        console.log('[LangChainAgent] OCR data received:', ocrData);
+        
+        // Merge OCR data into extracted data
+        const existingData = session.extractedData || {};
+        const mergedData = { ...existingData, ...ocrData, ocrProcessed: true };
+        await this.sessionService.setExtractedData(session, mergedData);
+        
+        this.emitEvent(eventCallback, 'analyzing', { message: 'Invoice data extracted. Checking for missing information...' });
+      } catch (e) {
+        console.error('[LangChainAgent] Failed to parse OCR data:', e);
+      }
+    }
+
+    // Handle skip file upload
+    if (request.answer === 'SKIP_FILE_UPLOAD') {
+      console.log('[LangChainAgent] User skipped file upload');
+      const existingData = session.extractedData || {};
+      await this.sessionService.setExtractedData(session, { ...existingData, ocrProcessed: true });
     }
 
     const lastAgentMessage = [...session.messages].reverse().find(m => m.role === 'agent');
