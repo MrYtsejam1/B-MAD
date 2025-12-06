@@ -29,7 +29,7 @@
       ],
       "workflow": {
         "steps": ["DRAFT", "SUBMITTED", "MANAGER_APPROVED", "FINANCE_APPROVED", "REIMBURSED"],
-        "requiredFields": ["workerName", "invoiceUpload", "invoiceDetails", "expenseType"],
+        "requiredFields": ["workerName", "invoiceDate", "invoiceUpload", "invoiceDetails", "expenseType"],
         "prompts": {
           "he": ["חשבונית", "החזר", "קבלה", "הוצאה", "החזר כספי"],
           "en": ["invoice", "receipt", "refund", "expense", "reimbursement", "bill"]
@@ -47,13 +47,22 @@
             "source": "user_input"
           },
           {
+            "name": "invoiceDate",
+            "label": "Invoice Date",
+            "labelHe": "תאריך החשבונית",
+            "type": "date",
+            "required": true,
+            "placeholder": "Select invoice date",
+            "source": "user_input"
+          },
+          {
             "name": "invoiceUpload",
             "label": "Invoice Upload (OCR)",
             "labelHe": "העלאת חשבונית",
             "type": "file",
             "required": false,
             "accept": "image/*,application/pdf",
-            "placeholder": "Upload invoice image or PDF",
+            "placeholder": "Upload invoice image or PDF for OCR extraction",
             "source": "ocr"
           },
           {
@@ -107,7 +116,7 @@
       ],
       "workflow": {
         "steps": ["DRAFT", "SUBMITTED", "APPROVED", "BOOKED"],
-        "requiredFields": ["workerName", "travelersNames", "departureCity", "destinationCity", "passport", "departureFlightNumber", "returnFlightNumber", "hotelDetails"],
+        "requiredFields": ["workerName", "travelersNames", "departureCity", "destinationCity", "departureDate", "returnDate", "passport", "departureFlightNumber", "returnFlightNumber", "hotelDetails"],
         "prompts": {
           "he": ["טיסה", "טיול פרטי", "נסיעת עבודה", "חופשה", "נסיעה", "טיול"],
           "en": ["flight", "trip", "travel", "vacation", "business trip", "journey"]
@@ -150,6 +159,24 @@
             "type": "text",
             "required": true,
             "placeholder": "Enter destination city",
+            "source": "user_input"
+          },
+          {
+            "name": "departureDate",
+            "label": "Departure Date",
+            "labelHe": "תאריך יציאה",
+            "type": "date",
+            "required": true,
+            "placeholder": "Select departure date",
+            "source": "user_input"
+          },
+          {
+            "name": "returnDate",
+            "label": "Return Date",
+            "labelHe": "תאריך חזרה",
+            "type": "date",
+            "required": true,
+            "placeholder": "Select return date",
             "source": "user_input"
           },
           {

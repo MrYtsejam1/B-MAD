@@ -853,6 +853,8 @@ Return ONLY the JSON object, no other text:`;
       // Travel MCP schema fields -> extraction aliases
       'destinationCity': ['destination', 'arrivalCity'],
       'departureCity': ['origin', 'departureCity'],
+      'departureDate': ['startDate', 'departureDate'],
+      'returnDate': ['endDate', 'returnDate'],
       'hotelDetails': ['hotel'],
       'departureFlightNumber': ['departureFlightNumber'],
       'returnFlightNumber': ['returnFlightNumber'],
@@ -860,6 +862,7 @@ Return ONLY the JSON object, no other text:`;
       'workerName': ['workerName', 'name'],
       // Invoice MCP schema fields -> extraction aliases
       'invoiceDetails': ['purpose', 'description'],
+      'invoiceDate': ['date', 'invoiceDate'],
       'expenseType': ['category', 'expenseType'],
     };
 
@@ -931,12 +934,23 @@ Return ONLY the JSON object, no other text:`;
       }
     }
 
+    // Travel date field mappings
+    if (data['startDate'] && !normalized['departureDate']) {
+      normalized['departureDate'] = data['startDate'];
+    }
+    if (data['endDate'] && !normalized['returnDate']) {
+      normalized['returnDate'] = data['endDate'];
+    }
+
     // Invoice MCP schema field mappings
     if (data['purpose'] && !normalized['invoiceDetails']) {
       normalized['invoiceDetails'] = data['purpose'];
     }
     if (data['category'] && !normalized['expenseType']) {
       normalized['expenseType'] = data['category'];
+    }
+    if (data['date'] && !normalized['invoiceDate']) {
+      normalized['invoiceDate'] = data['date'];
     }
 
     return normalized;

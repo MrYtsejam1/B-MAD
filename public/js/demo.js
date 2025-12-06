@@ -133,6 +133,9 @@ function displayGeneratedForm(schema, isRealAI = false) {
                     ${escapeAttr(opt.label)}
                 </label>`;
             }).join('');
+        } else if (field.type === 'file') {
+            const accept = field.accept ? `accept="${escapeAttr(field.accept)}"` : '';
+            inputHtml = `<input type="file" ${accept} ${placeholder}>`;
         } else {
             inputHtml = `<input type="${field.type}" ${placeholder} value="${escapedDefaultValue}">`;
         }
