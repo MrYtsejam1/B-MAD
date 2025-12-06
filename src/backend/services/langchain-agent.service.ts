@@ -550,7 +550,9 @@ Return ONLY the JSON object, no other text:`;
 
     if (complexity === ComplexityLevel.SIMPLE && this.sessionService.isSessionComplete(updatedSession)) {
       this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
-      const formOutput = await this.generateOutput(request.userInput, intent, complexity);
+      const rawFormOutput = await this.generateOutput(request.userInput, intent, complexity);
+      const combinedData = this.sessionService.getCombinedData(updatedSession);
+      const formOutput = this.applyDefaultsToFormOutput(rawFormOutput, combinedData);
       this.emitEvent(eventCallback, 'complete', formOutput);
       
       return this.sessionService.buildSessionResponse(updatedSession, 'generate', undefined, formOutput);
@@ -575,7 +577,9 @@ Return ONLY the JSON object, no other text:`;
     }
 
     this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
-    const formOutput = await this.generateOutput(request.userInput, intent, complexity);
+    const rawFormOutput = await this.generateOutput(request.userInput, intent, complexity);
+    const combinedData = this.sessionService.getCombinedData(updatedSession);
+    const formOutput = this.applyDefaultsToFormOutput(rawFormOutput, combinedData);
     this.emitEvent(eventCallback, 'complete', formOutput);
     
     return this.sessionService.buildSessionResponse(updatedSession, 'generate', undefined, formOutput);
@@ -621,7 +625,9 @@ Return ONLY the JSON object, no other text:`;
       this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
       
       const userInput = this.buildUserInputFromSession(updatedSession);
-      const formOutput = await this.generateOutput(userInput, updatedSession.intent, updatedSession.complexity);
+      const rawFormOutput = await this.generateOutput(userInput, updatedSession.intent, updatedSession.complexity);
+      const combinedData = this.sessionService.getCombinedData(updatedSession);
+      const formOutput = this.applyDefaultsToFormOutput(rawFormOutput, combinedData);
       
       this.emitEvent(eventCallback, 'complete', formOutput);
       
@@ -648,7 +654,9 @@ Return ONLY the JSON object, no other text:`;
 
     this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
     const userInput = this.buildUserInputFromSession(updatedSession);
-    const formOutput = await this.generateOutput(userInput, updatedSession.intent, updatedSession.complexity);
+    const rawFormOutput = await this.generateOutput(userInput, updatedSession.intent, updatedSession.complexity);
+    const combinedData = this.sessionService.getCombinedData(updatedSession);
+    const formOutput = this.applyDefaultsToFormOutput(rawFormOutput, combinedData);
     this.emitEvent(eventCallback, 'complete', formOutput);
     
     return this.sessionService.buildSessionResponse(updatedSession, 'generate', undefined, formOutput);
@@ -705,5 +713,41 @@ Return ONLY the JSON object, no other text:`;
         timestamp: new Date().toISOString(),
       });
     }
+  }
+
+  /**
+   * Apply default values to form output from collected session data
+   * This pre-fills form fields with the data collected during conversation
+   */
+  private applyDefaultsToFormOutput(formOutput: unknown, data: Record<string, unknown>): unknown {
+    if (!formOutput || !data || typeof formOutput !== 'object') {
+      return formOutput;
+    }
+
+    const output = formOutput as Record<string, unknown>;
+    
+    // Handle JSON schema mode
+    const schema = (output.schema || output.formSchema) as Record<string, unknown> | undefined;
+    if (schema && Array.isArray(schema.fields)) {
+      for (const field of schema.fields as Array<Record<string, unknown>>) {
+        const key = field.name as string;
+        if (key && data[key] != null && data[key] !== '') {
+          field.defaultValue = data[key];
+        }
+      }
+    }
+
+    // Handle web component mode - inject data into component metadata
+    const component = output.component as Record<string, unknown> | undefined;
+    if (component) {
+      component.formData = data;
+    }
+
+    console.log('[LangChainAgent] Applied defaults to form output:', {
+      fieldsWithDefaults: schema?.fields ? (schema.fields as Array<Record<string, unknown>>).filter(f => f.defaultValue).map(f => f.name) : [],
+      dataKeys: Object.keys(data).filter(k => data[k])
+    });
+
+    return output;
   }
 }

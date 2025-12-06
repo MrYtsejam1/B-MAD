@@ -219,13 +219,16 @@ export class SessionService {
     questionResult?: QuestionResult,
     formOutput?: unknown
   ): SessionResponse {
+    // Use combined data (extractedData + answers) so UI shows user's responses
+    const combinedData = this.getCombinedData(session);
+    
     const response: SessionResponse = {
       sessionId: session.id,
       action,
       maxQuestions: session.maxQuestions,
       intent: session.intent,
       complexity: session.complexity,
-      extractedData: session.extractedData,
+      extractedData: combinedData,
     };
 
     if (action === 'clarify' && questionResult?.question) {
@@ -251,5 +254,29 @@ export class SessionService {
     }
 
     return session.gaps.length === 0 || session.questionNumber >= session.maxQuestions;
+  }
+
+  /**
+   * Get combined data from extractedData and answers
+   * Answers take precedence over extractedData
+   */
+  getCombinedData(session: AgentSession): Record<string, unknown> {
+    const combined: Record<string, unknown> = {};
+    
+    // Start with extractedData
+    if (session.extractedData) {
+      Object.assign(combined, session.extractedData);
+    }
+    
+    // Override with answers (user's explicit responses)
+    if (session.answers) {
+      for (const [key, value] of Object.entries(session.answers)) {
+        if (value && typeof value === 'string' && value.trim()) {
+          combined[key] = value;
+        }
+      }
+    }
+    
+    return combined;
   }
 }
