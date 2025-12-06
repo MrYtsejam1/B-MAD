@@ -68,6 +68,9 @@ export class OCRController {
         if (result.invoice.vendor?.value) {
           enrichedFields.vendor = result.invoice.vendor.value;
         }
+        if (result.invoice.invoiceNumber?.value) {
+          enrichedFields.invoiceNumber = result.invoice.invoiceNumber.value;
+        }
         // Try to detect expense type from vendor or description
         if (result.invoice.vendor?.value) {
           const vendorLower = result.invoice.vendor.value.toLowerCase();
