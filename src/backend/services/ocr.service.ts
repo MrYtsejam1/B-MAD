@@ -94,7 +94,7 @@ Return ONLY a valid JSON object with these exact fields (use null for any field 
   "currency": "ILS" or "USD" or "EUR",
   "vendor": "business/vendor name string",
   "invoiceNumber": "invoice/receipt number string",
-  "category": "food" or "parking" or "hotel" or "flight" or "conference" or "other"
+  "category": "food" or "parking" or "hotel" or "flight" or "conference" or "software" or "other"
 }
 
 IMPORTANT EXTRACTION RULES:
@@ -125,10 +125,12 @@ IMPORTANT EXTRACTION RULES:
      Examples: "אל על", "ישראייר", "El Al", "Israir"
    - Conference, seminar, course, training => "conference"
      Examples: "כנס הייטק", "קורס מקצועי"
-   - Software, IT services, consulting, legal, accounting, and anything else => "other"
-     Examples: "כהן שירותי מחשוב", "יועצי תוכנה", "עורכי דין"
+   - Software, IT services, tech consulting => "software"
+     Examples: "כהן שירותי מחשוב", "יועצי תוכנה", "חברת הייטק"
+   - Legal, accounting, and anything else => "other"
+     Examples: "עורכי דין", "רואי חשבון"
    
-   IMPORTANT: If you are not confident it is food, hotel, parking, flight, or conference, choose "other".
+   IMPORTANT: If you are not confident it is food, hotel, parking, flight, conference, or software, choose "other".
 
 Return ONLY the JSON object, no explanations or additional text.`;
 

@@ -121,14 +121,15 @@
             "labelHe": "סוג ההוצאה",
             "type": "select",
             "required": true,
-            "options": [
-              { "value": "parking", "label": "Parking", "labelHe": "חניה" },
-              { "value": "food", "label": "Food", "labelHe": "אוכל" },
-              { "value": "hotel", "label": "Hotel", "labelHe": "מלון" },
-              { "value": "flight", "label": "Flight", "labelHe": "טיסה" },
-              { "value": "conference", "label": "Conference", "labelHe": "כנס" },
-              { "value": "other", "label": "Other", "labelHe": "אחר" }
-            ],
+              "options": [
+                { "value": "parking", "label": "Parking", "labelHe": "חניה" },
+                { "value": "food", "label": "Food", "labelHe": "אוכל" },
+                { "value": "hotel", "label": "Hotel", "labelHe": "מלון" },
+                { "value": "flight", "label": "Flight", "labelHe": "טיסה" },
+                { "value": "conference", "label": "Conference", "labelHe": "כנס" },
+                { "value": "software", "label": "Software/IT Services", "labelHe": "שירותי מחשוב/תוכנה" },
+                { "value": "other", "label": "Other", "labelHe": "אחר" }
+              ],
             "placeholder": "Select expense type",
             "source": "user_input"
           }
