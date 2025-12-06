@@ -135,7 +135,13 @@ function displayGeneratedForm(schema, isRealAI = false) {
             }).join('');
         } else if (field.type === 'file') {
             const accept = field.accept ? `accept="${escapeAttr(field.accept)}"` : '';
-            inputHtml = `<input type="file" ${accept} ${placeholder}>`;
+            const fieldId = `file_${escapeAttr(field.name)}`;
+            inputHtml = `
+                <div class="file-upload-container">
+                    <input type="file" id="${fieldId}" name="${escapeAttr(field.name)}" ${accept} ${placeholder}>
+                    <div id="${fieldId}_status" class="ocr-status"></div>
+                </div>
+            `;
         } else {
             inputHtml = `<input type="${field.type}" ${placeholder} value="${escapedDefaultValue}">`;
         }
@@ -163,4 +169,104 @@ function displayGeneratedForm(schema, isRealAI = false) {
             <div class="code-block">${JSON.stringify(schema, null, 2)}</div>
         </div>
     `;
+
+    // Attach OCR handlers to file inputs
+    attachOcrHandlers(schema.fields);
+}
+
+/**
+ * Attach OCR processing handlers to file input fields
+ * When a file is uploaded, it's sent to the OCR endpoint and extracted data populates form fields
+ */
+function attachOcrHandlers(fields) {
+    if (!fields) return;
+    
+    fields.forEach(field => {
+        if (field.type === 'file') {
+            const fileInput = document.getElementById(`file_${field.name}`);
+            if (fileInput) {
+                fileInput.addEventListener('change', async (e) => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+                    
+                    const statusDiv = document.getElementById(`file_${field.name}_status`);
+                    statusDiv.innerHTML = '<span class="ocr-processing">Processing with OCR...</span>';
+                    
+                    try {
+                        const formData = new FormData();
+                        formData.append('file', file);
+                        
+                        const response = await fetch('/api/v1/ocr/invoice', {
+                            method: 'POST',
+                            body: formData,
+                        });
+                        
+                        const result = await response.json();
+                        
+                        if (result.success && result.enrichedFields) {
+                            statusDiv.innerHTML = '<span class="ocr-success">OCR completed! Form fields populated.</span>';
+                            
+                            // Populate form fields with extracted data
+                            for (const [fieldName, value] of Object.entries(result.enrichedFields)) {
+                                if (value) {
+                                    populateFormField(fieldName, value);
+                                }
+                            }
+                            
+                            if (result.warnings && result.warnings.length > 0) {
+                                statusDiv.innerHTML += `<br><span class="ocr-warning">Warnings: ${result.warnings.join(', ')}</span>`;
+                            }
+                        } else {
+                            statusDiv.innerHTML = `<span class="ocr-error">OCR failed: ${result.error || 'Unknown error'}</span>`;
+                        }
+                    } catch (error) {
+                        console.error('OCR error:', error);
+                        statusDiv.innerHTML = `<span class="ocr-error">OCR error: ${error.message}</span>`;
+                    }
+                });
+            }
+        }
+    });
+}
+
+/**
+ * Populate a form field with a value
+ * Handles different input types (text, textarea, select)
+ */
+function populateFormField(fieldName, value) {
+    // Try to find the field by name attribute
+    const inputs = document.querySelectorAll(`[name="${fieldName}"]`);
+    if (inputs.length > 0) {
+        inputs.forEach(input => {
+            if (input.tagName === 'SELECT') {
+                // For select, try to find matching option
+                const options = input.querySelectorAll('option');
+                options.forEach(opt => {
+                    if (opt.value.toLowerCase() === value.toLowerCase()) {
+                        input.value = opt.value;
+                    }
+                });
+            } else if (input.tagName === 'TEXTAREA') {
+                input.value = value;
+            } else {
+                input.value = value;
+            }
+            // Highlight the field to show it was auto-filled
+            input.style.backgroundColor = '#e8f5e9';
+            setTimeout(() => {
+                input.style.backgroundColor = '';
+            }, 2000);
+        });
+        return;
+    }
+    
+    // Try to find by ID
+    const inputById = document.getElementById(fieldName);
+    if (inputById) {
+        inputById.value = value;
+        inputById.style.backgroundColor = '#e8f5e9';
+        setTimeout(() => {
+            inputById.style.backgroundColor = '';
+        }, 2000);
+    }
 }
