@@ -106,9 +106,12 @@ export class OutputModeService {
   }
 
   private generateComponentTypeScript(formData: any): string {
-    const fields = formData.fields || [];
+    const rawFields = formData.fields || [];
+    const fields = Array.isArray(rawFields) ? rawFields : [];
     const title = formData.title || 'Generated Form';
     const description = formData.description || '';
+    
+    console.log('[OutputModeService] Generating web component with fields:', fields);
 
     return `
 class GeneratedFormComponent extends HTMLElement {

@@ -401,11 +401,18 @@ Return ONLY the JSON object:`;
 
     if (mcpServerId) {
       const capabilities = await this.tools.mcpDescribe(mcpServerId);
+      const requiredFields = capabilities.requirements?.requiredFields || [];
+      
+      console.log('[LangChainAgent] MCP capabilities:', {
+        name: capabilities.name,
+        requiredFields,
+        requirementsExists: !!capabilities.requirements
+      });
       
       formData = {
         title: capabilities.name,
         description: capabilities.description,
-        fields: capabilities.requirements?.requiredFields || [],
+        fields: Array.isArray(requiredFields) ? requiredFields : [],
       };
     } else {
       formData = await this.extractFormFromPrompt(userInput);
