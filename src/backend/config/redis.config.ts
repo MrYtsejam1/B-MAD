@@ -1,8 +1,9 @@
-import Redis from 'ioredis';
+import Redis, { RedisOptions } from 'ioredis';
 import { logger } from '../utils/logger';
 
 /**
  * Redis configuration and client
+ * Supports both REDIS_URL format and individual REDIS_HOST/PORT/PASSWORD env vars
  */
 
 export interface RedisConfig {
@@ -14,10 +15,39 @@ export interface RedisConfig {
   retryStrategy: (times: number) => number | void;
 }
 
+function parseRedisUrl(url: string): { host: string; port: number; password?: string } {
+  const cleanUrl = url.replace(/^redis:\/\//, '').replace(/^rediss:\/\//, '');
+  
+  let host = cleanUrl;
+  let port = 6379;
+  let password: string | undefined;
+
+  if (cleanUrl.includes('@')) {
+    const [auth, hostPart] = cleanUrl.split('@');
+    host = hostPart;
+    if (auth.includes(':')) {
+      password = auth.split(':')[1];
+    } else {
+      password = auth;
+    }
+  }
+
+  if (host.includes(':')) {
+    const [hostPart, portPart] = host.split(':');
+    host = hostPart;
+    port = parseInt(portPart) || 6379;
+  }
+
+  return { host, port, password };
+}
+
+const redisUrl = process.env.REDIS_URL;
+const parsedUrl = redisUrl ? parseRedisUrl(redisUrl) : null;
+
 export const redisConfig: RedisConfig = {
-  host: process.env.REDIS_HOST || 'localhost',
-  port: parseInt(process.env.REDIS_PORT || '6379'),
-  password: process.env.REDIS_PASSWORD,
+  host: parsedUrl?.host || process.env.REDIS_HOST || 'localhost',
+  port: parsedUrl?.port || parseInt(process.env.REDIS_PORT || '6379'),
+  password: parsedUrl?.password || process.env.REDIS_PASSWORD,
   db: parseInt(process.env.REDIS_DB || '0'),
   keyPrefix: 'bmad:',
   retryStrategy: (times: number) => {
@@ -30,7 +60,16 @@ let redisClient: Redis | null = null;
 
 export const getRedisClient = (): Redis => {
   if (!redisClient) {
-    redisClient = new Redis(redisConfig);
+    const options: RedisOptions = {
+      host: redisConfig.host,
+      port: redisConfig.port,
+      password: redisConfig.password,
+      db: redisConfig.db,
+      keyPrefix: redisConfig.keyPrefix,
+      retryStrategy: redisConfig.retryStrategy,
+    };
+    
+    redisClient = new Redis(options);
 
     redisClient.on('connect', () => {
       logger.info('Redis connected', { 
