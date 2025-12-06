@@ -53,7 +53,7 @@ export class OCRParserService {
     // Split text into lines for more precise matching
     const lines = text.split('\n');
     
-    // Hebrew labels for amount
+    // Hebrew labels for amount (ordered by specificity - most specific first)
     const hebrewLabels = ['סה"כ לתשלום', 'סהכ לתשלום', 'סה"כ', 'סהכ', 'סכום', 'תשלום', 'מחיר', 'לתשלום'];
     // English labels for amount
     const englishLabels = ['total', 'amount', 'subtotal', 'sum', 'total due', 'amount due'];
@@ -65,40 +65,22 @@ export class OCRParserService {
       const hasEnglishLabel = englishLabels.some(label => lineLower.includes(label));
       
       if (hasHebrewLabel || hasEnglishLabel) {
-        // Extract amount from this specific line - look for number pattern
+        // Extract ALL numeric candidates from this line using matchAll
         // Match numbers like: 2164.50, 2,164.50, 1000, etc.
-        const amountMatch = line.match(/(\d{1,3}(?:[,]\d{3})*(?:[.]\d{1,2})?|\d+(?:[.]\d{1,2})?)/);
-        if (amountMatch) {
-          const amountStr = amountMatch[1].replace(/,/g, '');
-          const amount = parseFloat(amountStr);
-          
-          if (!isNaN(amount) && amount > 0 && amount < 1000000) { // Sanity check: less than 1M
-            const confidence = overallConfidence / 100;
-            return {
-              value: amount.toFixed(2),
-              confidence,
-              needsReview: confidence < threshold,
-            };
-          }
-        }
-      }
-    }
-    
-    // Fallback: try currency symbol patterns
-    const currencyPatterns = [
-      /₪\s*(\d{1,3}(?:[,]\d{3})*(?:[.]\d{1,2})?|\d+(?:[.]\d{1,2})?)/g,
-      /\$\s*(\d{1,3}(?:[,]\d{3})*(?:[.]\d{1,2})?|\d+(?:[.]\d{1,2})?)/g,
-      /(\d{1,3}(?:[,]\d{3})*(?:[.]\d{1,2})?|\d+(?:[.]\d{1,2})?)\s*(?:₪|ש"ח|שקל|ILS|NIS|USD|EUR)/gi,
-    ];
-
-    for (const pattern of currencyPatterns) {
-      const match = pattern.exec(text);
-      if (match) {
-        const amountStr = match[1].replace(/,/g, '');
-        const amount = parseFloat(amountStr);
-
-        if (!isNaN(amount) && amount > 0 && amount < 1000000) {
+        const matches = [...line.matchAll(/(\d{1,3}(?:[,]\d{3})*(?:[.]\d{1,2})?|\d+(?:[.]\d{1,2})?)/g)];
+        
+        // Parse all candidates and pick the LARGEST one (most likely to be the total)
+        const candidates = matches
+          .map(m => parseFloat(m[1].replace(/,/g, '')))
+          .filter(v => !isNaN(v) && v > 0 && v < 1000000);
+        
+        if (candidates.length > 0) {
+          // Pick the largest amount on this line
+          const amount = Math.max(...candidates);
           const confidence = overallConfidence / 100;
+          
+          console.log(`[OCR Amount] Line: "${line.trim()}" | Candidates: ${candidates.join(', ')} | Picked: ${amount}`);
+          
           return {
             value: amount.toFixed(2),
             confidence,
@@ -106,6 +88,37 @@ export class OCRParserService {
           };
         }
       }
+    }
+    
+    // Fallback: try currency symbol patterns on full text
+    const currencyPatterns = [
+      /₪\s*(\d{1,3}(?:[,]\d{3})*(?:[.]\d{1,2})?|\d+(?:[.]\d{1,2})?)/g,
+      /\$\s*(\d{1,3}(?:[,]\d{3})*(?:[.]\d{1,2})?|\d+(?:[.]\d{1,2})?)/g,
+      /(\d{1,3}(?:[,]\d{3})*(?:[.]\d{1,2})?|\d+(?:[.]\d{1,2})?)\s*(?:₪|ש"ח|שקל|ILS|NIS|USD|EUR)/gi,
+    ];
+
+    // Collect all currency-adjacent amounts and pick the largest
+    const allCurrencyAmounts: number[] = [];
+    for (const pattern of currencyPatterns) {
+      let match;
+      while ((match = pattern.exec(text)) !== null) {
+        const amountStr = match[1].replace(/,/g, '');
+        const amount = parseFloat(amountStr);
+        if (!isNaN(amount) && amount > 0 && amount < 1000000) {
+          allCurrencyAmounts.push(amount);
+        }
+      }
+    }
+
+    if (allCurrencyAmounts.length > 0) {
+      const amount = Math.max(...allCurrencyAmounts);
+      const confidence = overallConfidence / 100;
+      console.log(`[OCR Amount] Currency fallback | Candidates: ${allCurrencyAmounts.join(', ')} | Picked: ${amount}`);
+      return {
+        value: amount.toFixed(2),
+        confidence,
+        needsReview: confidence < threshold,
+      };
     }
 
     return undefined;

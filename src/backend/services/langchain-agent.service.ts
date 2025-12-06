@@ -971,6 +971,10 @@ Return ONLY the JSON object, no other text:`;
       'invoiceDetails': ['purpose', 'description'],
       'invoiceDate': ['date', 'invoiceDate'],
       'expenseType': ['category', 'expenseType'],
+      'invoiceNumber': ['invoiceNumber'],
+      'amount': ['amount'],
+      'vendor': ['vendor'],
+      'currency': ['currency'],
     };
 
     // Try aliases
