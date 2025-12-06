@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { LangChainAgentService } from '../services/langchain-agent.service';
 import { AgentEvent } from '../models/agent.model';
+import { SessionStartRequest, SessionMessageRequest } from '../models/session.model';
 import { componentController } from './component.controller';
 
 export class SSEController {
@@ -9,6 +10,102 @@ export class SSEController {
 
   constructor() {
     this.agent = new LangChainAgentService();
+  }
+
+  async startSession(req: Request, res: Response): Promise<void> {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    this.sendEvent(res, 'connected', { message: 'Connected to agent stream' });
+
+    const heartbeat = setInterval(() => {
+      this.sendEvent(res, 'heartbeat', { timestamp: new Date().toISOString() });
+    }, this.heartbeatInterval);
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      console.log('SSE client disconnected');
+    });
+
+    try {
+      const { userInput, mode, scenario } = req.body;
+
+      if (!userInput) {
+        this.sendEvent(res, 'error', { message: 'Missing userInput parameter' });
+        res.end();
+        return;
+      }
+
+      const request: SessionStartRequest = { userInput, mode, scenario };
+
+      const result = await this.agent.startSession(
+        request,
+        (event: AgentEvent) => {
+          this.sendEvent(res, event.type, event.data);
+        }
+      );
+
+      this.sendEvent(res, 'result', result);
+      
+      clearInterval(heartbeat);
+      res.end();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Session start error:', error);
+      this.sendEvent(res, 'error', { message: errorMessage });
+      clearInterval(heartbeat);
+      res.end();
+    }
+  }
+
+  async continueSession(req: Request, res: Response): Promise<void> {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+
+    this.sendEvent(res, 'connected', { message: 'Connected to agent stream' });
+
+    const heartbeat = setInterval(() => {
+      this.sendEvent(res, 'heartbeat', { timestamp: new Date().toISOString() });
+    }, this.heartbeatInterval);
+
+    req.on('close', () => {
+      clearInterval(heartbeat);
+      console.log('SSE client disconnected');
+    });
+
+    try {
+      const { sessionId, answer } = req.body;
+
+      if (!sessionId || !answer) {
+        this.sendEvent(res, 'error', { message: 'Missing sessionId or answer parameter' });
+        res.end();
+        return;
+      }
+
+      const request: SessionMessageRequest = { sessionId, answer };
+
+      const result = await this.agent.continueSession(
+        request,
+        (event: AgentEvent) => {
+          this.sendEvent(res, event.type, event.data);
+        }
+      );
+
+      this.sendEvent(res, 'result', result);
+      
+      clearInterval(heartbeat);
+      res.end();
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Session continue error:', error);
+      this.sendEvent(res, 'error', { message: errorMessage });
+      clearInterval(heartbeat);
+      res.end();
+    }
   }
 
   async streamAgentResponse(req: Request, res: Response): Promise<void> {
