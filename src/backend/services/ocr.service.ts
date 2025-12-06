@@ -63,26 +63,28 @@ export class OCRService {
   
   /**
    * Process PDF files by extracting embedded text directly
-   * Most invoices/receipts have text embedded, so OCR is not needed
+   * If no meaningful text is found, fall back to image extraction + OCR
    */
   private async processPdf(pdfBuffer: Buffer, startTime: number): Promise<OCRResult> {
     try {
       console.log('[OCR] Processing PDF - extracting embedded text');
       const parser = new PDFParse({ data: pdfBuffer });
-      const textResult = await parser.getText();
+      const textResult = await parser.getText({ pageJoiner: '\n' });
       const text = textResult.text;
       
-      if (!text || text.trim().length === 0) {
-        return {
-          success: false,
-          rawText: '',
-          confidence: 0,
-          processingTime: Date.now() - startTime,
-          errors: ['PDF contains no extractable text. Please upload an image of the invoice instead.'],
-        };
-      }
-      
       console.log(`[OCR] Extracted ${text.length} characters from PDF`);
+      console.log(`[OCR] First 200 chars: ${text.substring(0, 200)}`);
+      
+      // Check if extracted text is meaningful (has digits and reasonable length)
+      // Scanned PDFs often only have page markers like "-- 1 of 1 --"
+      const hasDigits = /\d/.test(text);
+      const hasInvoiceKeywords = /(₪|ש"ח|NIS|USD|EUR|\$|invoice|חשבונית|סכום|total|amount|date|תאריך)/i.test(text);
+      const isMeaningfulText = text.trim().length > 50 && hasDigits && hasInvoiceKeywords;
+      
+      if (!isMeaningfulText) {
+        console.log('[OCR] PDF text not meaningful, falling back to image extraction + OCR');
+        return await this.processPdfWithImageOcr(parser, startTime);
+      }
       
       // Parse the extracted text for invoice data
       // Use high confidence since text is directly extracted, not OCR'd
@@ -105,6 +107,75 @@ export class OCRService {
         confidence: 0,
         processingTime: Date.now() - startTime,
         errors: [`Failed to extract text from PDF: ${error.message}`],
+      };
+    }
+  }
+  
+  /**
+   * Fall back to extracting images from PDF and running Tesseract OCR
+   * Used when PDF has no embedded text (scanned documents)
+   */
+  private async processPdfWithImageOcr(parser: PDFParse, startTime: number): Promise<OCRResult> {
+    try {
+      console.log('[OCR] Extracting images from PDF for OCR');
+      const imageResult = await parser.getImage({ 
+        imageBuffer: true, 
+        imageDataUrl: false,
+        first: 1, // Only process first page for invoices
+        imageThreshold: 50, // Include images larger than 50px
+      });
+      
+      if (!imageResult.pages.length || !imageResult.pages[0].images.length) {
+        return {
+          success: false,
+          rawText: '',
+          confidence: 0,
+          processingTime: Date.now() - startTime,
+          errors: ['PDF contains no extractable text or images. Please upload a screenshot or image of the invoice instead.'],
+        };
+      }
+      
+      // Find the largest image (most likely the main invoice content)
+      let largestImage = imageResult.pages[0].images[0];
+      for (const image of imageResult.pages[0].images) {
+        if (image.width * image.height > largestImage.width * largestImage.height) {
+          largestImage = image;
+        }
+      }
+      
+      console.log(`[OCR] Found image: ${largestImage.width}x${largestImage.height}`);
+      
+      // Convert Uint8Array to Buffer and run through Tesseract
+      const imageBuffer = Buffer.from(largestImage.data);
+      const preprocessedImage = await this.preprocessImage(imageBuffer);
+      const ocrResult = await this.extractText(preprocessedImage);
+      
+      console.log(`[OCR] Tesseract extracted ${ocrResult.text.length} characters from PDF image`);
+      
+      const invoiceData = this.parser.parseInvoice(
+        ocrResult.text,
+        ocrResult.confidence,
+        this.config.confidenceThreshold,
+      );
+      
+      const processingTime = Date.now() - startTime;
+      
+      return {
+        success: true,
+        rawText: ocrResult.text,
+        confidence: ocrResult.confidence / 100,
+        invoice: invoiceData,
+        processingTime,
+        warnings: this.generateWarnings(invoiceData, ocrResult.confidence),
+      };
+    } catch (error: any) {
+      console.error(`[OCR] PDF image extraction failed: ${error.message}`);
+      return {
+        success: false,
+        rawText: '',
+        confidence: 0,
+        processingTime: Date.now() - startTime,
+        errors: [`Failed to extract images from PDF: ${error.message}. Please upload a screenshot or image of the invoice instead.`],
       };
     }
   }
