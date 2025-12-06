@@ -390,12 +390,13 @@ Return ONLY the JSON object:`;
     try {
       const prompt = `Extract expense/invoice details from the following text. Return ONLY a JSON object:
 {
+  "workerName": "name of the person submitting (if mentioned)",
   "date": "expense date",
   "amount": "amount value",
   "currency": "currency code or symbol",
   "vendor": "vendor/merchant name",
-  "category": "expense category (meals, travel, supplies, software, other)",
-  "purpose": "purpose or description"
+  "category": "expense category (parking, food, hotel, flight, conference, other)",
+  "purpose": "purpose or description of the expense"
 }
 
 Text: "${userInput}"
@@ -813,8 +814,9 @@ Return ONLY the JSON object, no other text:`;
     if (schema && Array.isArray(schema.fields)) {
       for (const field of schema.fields as Array<Record<string, unknown>>) {
         const key = field.name as string;
-        if (key && data[key] != null && data[key] !== '') {
-          field.defaultValue = data[key];
+        const value = this.getValueForField(key, data);
+        if (key && value != null && value !== '') {
+          field.defaultValue = value;
         }
       }
     }
@@ -822,7 +824,9 @@ Return ONLY the JSON object, no other text:`;
     // Handle web component mode - inject data into component metadata
     const component = output.component as Record<string, unknown> | undefined;
     if (component) {
-      component.formData = data;
+      // Normalize the data for web component as well
+      const normalizedData = this.normalizeDataForMcpSchema(data);
+      component.formData = normalizedData;
     }
 
     console.log('[LangChainAgent] Applied defaults to form output:', {
@@ -831,5 +835,124 @@ Return ONLY the JSON object, no other text:`;
     });
 
     return output;
+  }
+
+  /**
+   * Get value for a field, with fallback to aliased field names
+   * Maps old extraction field names to new MCP schema field names
+   */
+  private getValueForField(fieldName: string, data: Record<string, unknown>): unknown {
+    // First, try direct match
+    let value = data[fieldName];
+    if (value != null && value !== '') {
+      return value;
+    }
+
+    // Field name aliases: MCP schema field -> extraction field aliases
+    const fieldAliases: Record<string, string[]> = {
+      // Travel MCP schema fields -> extraction aliases
+      'destinationCity': ['destination', 'arrivalCity'],
+      'departureCity': ['origin', 'departureCity'],
+      'departureDate': ['startDate', 'departureDate'],
+      'returnDate': ['endDate', 'returnDate'],
+      'hotelDetails': ['hotel'],
+      'departureFlightNumber': ['departureFlightNumber'],
+      'returnFlightNumber': ['returnFlightNumber'],
+      'travelersNames': ['travelers', 'travelersNames'],
+      'workerName': ['workerName', 'name'],
+      // Invoice MCP schema fields -> extraction aliases
+      'invoiceDetails': ['purpose', 'description'],
+      'invoiceDate': ['date', 'invoiceDate'],
+      'expenseType': ['category', 'expenseType'],
+    };
+
+    // Try aliases
+    const aliases = fieldAliases[fieldName];
+    if (aliases) {
+      for (const alias of aliases) {
+        if (data[alias] != null && data[alias] !== '') {
+          console.log(`[LangChainAgent] Field mapping: ${fieldName} <- ${alias}`);
+          return data[alias];
+        }
+      }
+    }
+
+    // Special handling for flight numbers - parse from 'flights' field
+    if (fieldName === 'departureFlightNumber' && data['flights']) {
+      const flights = String(data['flights']);
+      const flightCodes = flights.match(/[A-Z]{2}\d+/gi);
+      if (flightCodes && flightCodes.length > 0) {
+        console.log(`[LangChainAgent] Parsed departure flight: ${flightCodes[0]} from flights: ${flights}`);
+        return flightCodes[0];
+      }
+    }
+
+    if (fieldName === 'returnFlightNumber' && data['flights']) {
+      const flights = String(data['flights']);
+      const flightCodes = flights.match(/[A-Z]{2}\d+/gi);
+      if (flightCodes && flightCodes.length > 1) {
+        console.log(`[LangChainAgent] Parsed return flight: ${flightCodes[1]} from flights: ${flights}`);
+        return flightCodes[1];
+      }
+    }
+
+    return value;
+  }
+
+  /**
+   * Normalize data object to include both old and new field names
+   * for web component compatibility
+   */
+  private normalizeDataForMcpSchema(data: Record<string, unknown>): Record<string, unknown> {
+    const normalized: Record<string, unknown> = { ...data };
+
+    // Travel MCP schema field mappings
+    if (data['destination'] && !normalized['destinationCity']) {
+      normalized['destinationCity'] = data['destination'];
+    }
+    if (data['origin'] && !normalized['departureCity']) {
+      normalized['departureCity'] = data['origin'];
+    }
+    if (data['hotel'] && !normalized['hotelDetails']) {
+      normalized['hotelDetails'] = data['hotel'];
+    }
+    if (data['travelers'] && !normalized['travelersNames']) {
+      normalized['travelersNames'] = data['travelers'];
+    }
+
+    // Parse flight numbers from 'flights' field
+    if (data['flights']) {
+      const flights = String(data['flights']);
+      const flightCodes = flights.match(/[A-Z]{2}\d+/gi);
+      if (flightCodes) {
+        if (flightCodes.length > 0 && !normalized['departureFlightNumber']) {
+          normalized['departureFlightNumber'] = flightCodes[0];
+        }
+        if (flightCodes.length > 1 && !normalized['returnFlightNumber']) {
+          normalized['returnFlightNumber'] = flightCodes[1];
+        }
+      }
+    }
+
+    // Travel date field mappings
+    if (data['startDate'] && !normalized['departureDate']) {
+      normalized['departureDate'] = data['startDate'];
+    }
+    if (data['endDate'] && !normalized['returnDate']) {
+      normalized['returnDate'] = data['endDate'];
+    }
+
+    // Invoice MCP schema field mappings
+    if (data['purpose'] && !normalized['invoiceDetails']) {
+      normalized['invoiceDetails'] = data['purpose'];
+    }
+    if (data['category'] && !normalized['expenseType']) {
+      normalized['expenseType'] = data['category'];
+    }
+    if (data['date'] && !normalized['invoiceDate']) {
+      normalized['invoiceDate'] = data['date'];
+    }
+
+    return normalized;
   }
 }
