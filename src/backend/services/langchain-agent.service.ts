@@ -768,9 +768,14 @@ Return ONLY the JSON object, no other text:`;
         const ocrData = JSON.parse(ocrDataJson);
         console.log('[LangChainAgent] OCR data received:', ocrData);
         
+        // Flatten enrichedFields if present (OCR response may have nested structure)
+        // This ensures fields like invoiceNumber are at the top level
+        const flatOcrData = ocrData.enrichedFields ? { ...ocrData.enrichedFields } : ocrData;
+        console.log('[LangChainAgent] Flattened OCR data:', flatOcrData);
+        
         // Merge OCR data into extracted data
         const existingData = session.extractedData || {};
-        const mergedData = { ...existingData, ...ocrData, ocrProcessed: true };
+        const mergedData = { ...existingData, ...flatOcrData, ocrProcessed: true };
         await this.sessionService.setExtractedData(session, mergedData);
         
         this.emitEvent(eventCallback, 'analyzing', { message: 'Invoice data extracted. Checking for missing information...' });
