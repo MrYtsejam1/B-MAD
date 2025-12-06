@@ -89,19 +89,50 @@ export class OCRService {
 
 Return ONLY a valid JSON object with these exact fields (use null for any field you cannot find):
 {
-  "invoiceDate": "YYYY-MM-DD format date or null",
-  "amount": number (the total amount to pay, as a number without currency symbols) or null,
-  "currency": "ILS" or "USD" or "EUR" or null,
-  "vendor": "business/vendor name string" or null,
-  "invoiceNumber": "invoice/receipt number string" or null,
-  "category": "food" or "parking" or "hotel" or "flight" or "conference" or "other" or null
+  "invoiceDate": "YYYY-MM-DD format date",
+  "amount": number (the total amount to pay, as a number without currency symbols),
+  "currency": "ILS" or "USD" or "EUR",
+  "vendor": "business/vendor name string",
+  "invoiceNumber": "invoice/receipt number string",
+  "category": "food" or "parking" or "hotel" or "flight" or "conference" or "software" or "other"
 }
 
-Important:
-- For Hebrew invoices, look for "סה"כ לתשלום" or "סה"כ" for the total amount
-- For invoice number, look for "מספר חשבונית", "מספר מסמך", "קבלה מס'" in Hebrew
-- For vendor name, look for the business name at the top of the invoice
-- Return ONLY the JSON object, no explanations or additional text`;
+IMPORTANT EXTRACTION RULES:
+
+1. INVOICE NUMBER - Look for these patterns:
+   - Hebrew: "מספר חשבונית", "מספר מסמך", "מזהה חשבונית", "קבלה מס'", "קבלה מספר", "מס' קבלה"
+   - English: "Invoice #", "Receipt #", "Document No.", "Invoice Number"
+   - Usually a numeric or alphanumeric code near the top of the document
+
+2. AMOUNT - Look for the TOTAL amount to pay:
+   - Hebrew: "סה"כ לתשלום", "סה"כ", "סכום לתשלום", "לתשלום"
+   - English: "Total", "Amount Due", "Grand Total"
+   - Return as a number (e.g., 2164.50, not "2,164.50")
+
+3. VENDOR - The business/company name:
+   - Usually at the top of the invoice in large text
+   - Look for the company logo or header area
+   - NOT the customer name
+
+4. CATEGORY - Infer from the vendor name and invoice content:
+   - Restaurant, cafe, food delivery, catering => "food"
+     Examples: "מסעדת גחלים", "קפה גרג", "וולט", "תן ביס"
+   - Hotel, accommodation, lodging => "hotel"
+     Examples: "מלון דן", "מלון הילטון", "Airbnb"
+   - Parking lot, parking service => "parking"
+     Examples: "חניון עזריאלי", "אחוזת החוף חניונים"
+   - Airline, flight, aviation => "flight"
+     Examples: "אל על", "ישראייר", "El Al", "Israir"
+   - Conference, seminar, course, training => "conference"
+     Examples: "כנס הייטק", "קורס מקצועי"
+   - Software, IT services, tech consulting => "software"
+     Examples: "כהן שירותי מחשוב", "יועצי תוכנה", "חברת הייטק"
+   - Legal, accounting, and anything else => "other"
+     Examples: "עורכי דין", "רואי חשבון"
+   
+   IMPORTANT: If you are not confident it is food, hotel, parking, flight, conference, or software, choose "other".
+
+Return ONLY the JSON object, no explanations or additional text.`;
 
     try {
       const response = await this.hf!.chatCompletion({

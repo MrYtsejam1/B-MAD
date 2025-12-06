@@ -71,17 +71,26 @@ export class OCRController {
         if (result.invoice.invoiceNumber?.value) {
           enrichedFields.invoiceNumber = result.invoice.invoiceNumber.value;
         }
-        // Try to detect expense type from vendor or description
-        if (result.invoice.vendor?.value) {
+        // Use vision model's category for expense type (primary)
+        // Fall back to vendor-based heuristics if category is null/other
+        if (result.invoice.category?.value && result.invoice.category.value !== 'other') {
+          enrichedFields.expenseType = result.invoice.category.value;
+        } else if (result.invoice.vendor?.value) {
+          // Fallback: detect expense type from vendor name
           const vendorLower = result.invoice.vendor.value.toLowerCase();
-          if (vendorLower.includes('hotel') || vendorLower.includes('מלון')) {
+          if (vendorLower.includes('hotel') || vendorLower.includes('מלון') || vendorLower.includes('accommodation')) {
             enrichedFields.expenseType = 'hotel';
-          } else if (vendorLower.includes('restaurant') || vendorLower.includes('cafe') || vendorLower.includes('מסעדה')) {
+          } else if (vendorLower.includes('restaurant') || vendorLower.includes('cafe') || vendorLower.includes('מסעדה') || vendorLower.includes('food') || vendorLower.includes('אוכל')) {
             enrichedFields.expenseType = 'food';
-          } else if (vendorLower.includes('parking') || vendorLower.includes('חניה')) {
+          } else if (vendorLower.includes('parking') || vendorLower.includes('חניה') || vendorLower.includes('חנייה')) {
             enrichedFields.expenseType = 'parking';
-          } else if (vendorLower.includes('flight') || vendorLower.includes('airline') || vendorLower.includes('טיסה')) {
+          } else if (vendorLower.includes('flight') || vendorLower.includes('airline') || vendorLower.includes('טיסה') || vendorLower.includes('aviation')) {
             enrichedFields.expenseType = 'flight';
+          } else if (vendorLower.includes('conference') || vendorLower.includes('כנס') || vendorLower.includes('seminar') || vendorLower.includes('course')) {
+            enrichedFields.expenseType = 'conference';
+          } else if (vendorLower.includes('מחשוב') || vendorLower.includes('תוכנה') || vendorLower.includes('software') || vendorLower.includes('it ') || vendorLower.includes('tech') || vendorLower.includes('הייטק')) {
+            // Software, IT services => software
+            enrichedFields.expenseType = 'software';
           }
         }
       }
