@@ -350,16 +350,38 @@ Respond with ONLY one of: invoice_submission, travel_booking, general_form, clar
 
   private async extractTravelDetails(userInput: string): Promise<any> {
     try {
-      const prompt = `Extract travel booking details from the following text. Return ONLY a JSON object:
+      // Get today's date in ISO format for the LLM to use as reference
+      const todayIso = new Date().toISOString().slice(0, 10);
+      
+      const prompt = `You are a travel assistant that extracts and NORMALIZES travel details from user text.
+The text may be in Hebrew or English.
+
+Today's date is ${todayIso} (YYYY-MM-DD).
+
+Extract the details and return ONLY a JSON object with this shape:
 {
-  "origin": "departure city",
-  "destination": "arrival city",
-  "startDate": "departure date",
-  "endDate": "return date",
-  "flights": "flight numbers if mentioned",
-  "hotel": "hotel name if mentioned",
-  "travelers": "traveler names or count"
+  "origin": "departure city or null",
+  "destination": "arrival city or null",
+  "startDate": "departure date in ISO 8601 format YYYY-MM-DD or null",
+  "endDate": "return date in ISO 8601 format YYYY-MM-DD or null",
+  "flights": "flight numbers as comma-separated string or null",
+  "hotel": "hotel name if mentioned or null",
+  "travelers": "traveler names or count or null"
 }
+
+VERY IMPORTANT DATE RULES:
+- You MUST convert ALL dates to absolute calendar dates in ISO 8601 format (YYYY-MM-DD).
+- Do NOT return relative words like "מחר", "מחרתיים", "בעוד 5 ימים", "היום", "בחודש הבא" in the date fields.
+- Use today's date (${todayIso}) as the reference point for relative expressions.
+- If the user says "אני טס מחר" (I fly tomorrow), calculate tomorrow's actual date from ${todayIso}.
+- If the user says "אני חוזר בעוד 5 ימים" (I return in 5 days), calculate 5 days AFTER the departure date (not from today).
+- If the user says "ב10 לינואר" or "ב-10 לינואר", convert it to YYYY-01-10 for the next occurrence.
+- If you cannot determine a date, use null for that field.
+
+Examples (today is ${todayIso}):
+1) "אני טס מחר וחוזר בעוד 5 ימים" -> startDate is tomorrow, endDate is 5 days after startDate
+2) "יש לי טיסה ב-10 לינואר" -> startDate is the next January 10th in YYYY-MM-DD format
+3) "בחודש הבא יש לי נסיעה" -> use the 1st of next month if no specific date given
 
 Text: "${userInput}"
 
@@ -388,16 +410,38 @@ Return ONLY the JSON object:`;
 
   private async extractInvoiceDetails(userInput: string): Promise<any> {
     try {
-      const prompt = `Extract expense/invoice details from the following text. Return ONLY a JSON object:
+      // Get today's date in ISO format for the LLM to use as reference
+      const todayIso = new Date().toISOString().slice(0, 10);
+      
+      const prompt = `You are an expense assistant that extracts and NORMALIZES invoice/expense details from user text.
+The text may be in Hebrew or English.
+
+Today's date is ${todayIso} (YYYY-MM-DD).
+
+Extract the details and return ONLY a JSON object with this shape:
 {
-  "workerName": "name of the person submitting (if mentioned)",
-  "date": "expense date",
-  "amount": "amount value",
-  "currency": "currency code or symbol",
-  "vendor": "vendor/merchant name",
-  "category": "expense category (parking, food, hotel, flight, conference, other)",
-  "purpose": "purpose or description of the expense"
+  "workerName": "name of the person submitting or null",
+  "date": "invoice/expense date in ISO 8601 format YYYY-MM-DD or null",
+  "amount": "amount value or null",
+  "currency": "currency code (ILS, USD, EUR) or symbol or null",
+  "vendor": "vendor/merchant name or null",
+  "category": "expense category (parking, food, hotel, flight, conference, other) or null",
+  "purpose": "purpose or description of the expense or null"
 }
+
+VERY IMPORTANT DATE RULES:
+- You MUST convert ALL dates to absolute calendar dates in ISO 8601 format (YYYY-MM-DD).
+- Do NOT return relative words like "אתמול", "היום", "בשבוע שעבר", "לפני יומיים" in the date field.
+- Use today's date (${todayIso}) as the reference point for relative expressions.
+- If the user says "אתמול" (yesterday), calculate yesterday's actual date from ${todayIso}.
+- If the user says "לפני שבוע" (a week ago), calculate 7 days before ${todayIso}.
+- If the user says "ב-5 לנובמבר", convert it to YYYY-11-05 for the most recent occurrence.
+- If you cannot determine a date, use null for that field.
+
+Examples (today is ${todayIso}):
+1) "יש לי חשבונית מאתמול" -> date is yesterday's date in YYYY-MM-DD format
+2) "הוצאה מלפני שבוע" -> date is 7 days before today in YYYY-MM-DD format
+3) "חשבונית מה-15 לחודש" -> date is the 15th of the current or previous month
 
 Text: "${userInput}"
 
