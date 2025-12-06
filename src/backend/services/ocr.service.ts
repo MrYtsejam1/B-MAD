@@ -114,6 +114,7 @@ export class OCRService {
   /**
    * Fall back to extracting images from PDF and running Tesseract OCR
    * Used when PDF has no embedded text (scanned documents)
+   * If no embedded images found, renders the page as a screenshot
    */
   private async processPdfWithImageOcr(parser: PDFParse, startTime: number): Promise<OCRResult> {
     try {
@@ -122,35 +123,57 @@ export class OCRService {
         imageBuffer: true, 
         imageDataUrl: false,
         first: 1, // Only process first page for invoices
-        imageThreshold: 50, // Include images larger than 50px
+        imageThreshold: 0, // Include all images
       });
       
-      if (!imageResult.pages.length || !imageResult.pages[0].images.length) {
-        return {
-          success: false,
-          rawText: '',
-          confidence: 0,
-          processingTime: Date.now() - startTime,
-          errors: ['PDF contains no extractable text or images. Please upload a screenshot or image of the invoice instead.'],
-        };
+      console.log(`[OCR] getImage result: ${imageResult.pages.length} pages`);
+      if (imageResult.pages.length > 0) {
+        console.log(`[OCR] First page has ${imageResult.pages[0].images.length} images`);
       }
       
-      // Find the largest image (most likely the main invoice content)
-      let largestImage = imageResult.pages[0].images[0];
-      for (const image of imageResult.pages[0].images) {
-        if (image.width * image.height > largestImage.width * largestImage.height) {
-          largestImage = image;
+      let imageBuffer: Buffer;
+      
+      if (imageResult.pages.length > 0 && imageResult.pages[0].images.length > 0) {
+        // Find the largest image (most likely the main invoice content)
+        let largestImage = imageResult.pages[0].images[0];
+        for (const image of imageResult.pages[0].images) {
+          if (image.width * image.height > largestImage.width * largestImage.height) {
+            largestImage = image;
+          }
         }
+        console.log(`[OCR] Using embedded image: ${largestImage.width}x${largestImage.height}`);
+        imageBuffer = Buffer.from(largestImage.data);
+      } else {
+        // No embedded images - render the page as a screenshot
+        console.log('[OCR] No embedded images found, rendering page as screenshot');
+        const screenshotResult = await parser.getScreenshot({
+          first: 1,
+          imageBuffer: true,
+          imageDataUrl: false,
+          desiredWidth: 1200, // Good resolution for OCR
+        });
+        
+        if (!screenshotResult.pages.length) {
+          return {
+            success: false,
+            rawText: '',
+            confidence: 0,
+            processingTime: Date.now() - startTime,
+            errors: ['PDF contains no extractable content. Please upload a screenshot or image of the invoice instead.'],
+          };
+        }
+        
+        const screenshot = screenshotResult.pages[0];
+        console.log(`[OCR] Screenshot rendered: ${screenshot.width}x${screenshot.height}`);
+        imageBuffer = Buffer.from(screenshot.data);
       }
       
-      console.log(`[OCR] Found image: ${largestImage.width}x${largestImage.height}`);
-      
-      // Convert Uint8Array to Buffer and run through Tesseract
-      const imageBuffer = Buffer.from(largestImage.data);
+      // Run through Tesseract OCR
       const preprocessedImage = await this.preprocessImage(imageBuffer);
       const ocrResult = await this.extractText(preprocessedImage);
       
-      console.log(`[OCR] Tesseract extracted ${ocrResult.text.length} characters from PDF image`);
+      console.log(`[OCR] Tesseract extracted ${ocrResult.text.length} characters from PDF`);
+      console.log(`[OCR] First 300 chars: ${ocrResult.text.substring(0, 300)}`);
       
       const invoiceData = this.parser.parseInvoice(
         ocrResult.text,

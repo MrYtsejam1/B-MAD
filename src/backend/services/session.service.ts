@@ -129,6 +129,21 @@ export class SessionService {
   async setRequiredFields(session: AgentSession, fields: string[]): Promise<AgentSession> {
     session.requiredFields = fields;
     session.gaps = fields.filter(f => !session.answers[f]);
+    
+    // Dynamically set maxQuestions based on gaps
+    // If there are many missing fields, allow more questions to collect all required data
+    // Only limit to 3 if most data is already provided
+    const gapsCount = session.gaps.length;
+    if (gapsCount > this.maxQuestions) {
+      // Allow asking for all missing required fields
+      session.maxQuestions = gapsCount;
+      logger.info('Increased maxQuestions to collect all required fields', { 
+        sessionId: session.id, 
+        gapsCount, 
+        maxQuestions: session.maxQuestions 
+      });
+    }
+    
     await this.saveSession(session);
     return session;
   }
