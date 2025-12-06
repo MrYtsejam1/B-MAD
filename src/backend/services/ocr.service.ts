@@ -116,11 +116,19 @@ IMPORTANT EXTRACTION RULES:
 
 4. CATEGORY - Infer from the vendor name and invoice content:
    - Restaurant, cafe, food delivery, catering => "food"
+     Examples: "מסעדת גחלים", "קפה גרג", "וולט", "תן ביס"
    - Hotel, accommodation, lodging => "hotel"
+     Examples: "מלון דן", "מלון הילטון", "Airbnb"
    - Parking lot, parking service => "parking"
+     Examples: "חניון עזריאלי", "אחוזת החוף חניונים"
    - Airline, flight, aviation => "flight"
+     Examples: "אל על", "ישראייר", "El Al", "Israir"
    - Conference, seminar, course, training => "conference"
-   - Everything else => "other"
+     Examples: "כנס הייטק", "קורס מקצועי"
+   - Software, IT services, consulting, legal, accounting, and anything else => "other"
+     Examples: "כהן שירותי מחשוב", "יועצי תוכנה", "עורכי דין"
+   
+   IMPORTANT: If you are not confident it is food, hotel, parking, flight, or conference, choose "other".
 
 Return ONLY the JSON object, no explanations or additional text.`;
 

@@ -88,6 +88,9 @@ export class OCRController {
             enrichedFields.expenseType = 'flight';
           } else if (vendorLower.includes('conference') || vendorLower.includes('כנס') || vendorLower.includes('seminar') || vendorLower.includes('course')) {
             enrichedFields.expenseType = 'conference';
+          } else if (vendorLower.includes('מחשוב') || vendorLower.includes('תוכנה') || vendorLower.includes('software') || vendorLower.includes('it ') || vendorLower.includes('ייעוץ') || vendorLower.includes('consulting')) {
+            // Software, IT, consulting services => other
+            enrichedFields.expenseType = 'other';
           }
         }
       }
