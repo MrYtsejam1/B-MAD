@@ -282,15 +282,15 @@ class ApprovalService {
         'x-budibase-app-id': this.config.budibaseAppId!,
       },
       body: JSON.stringify({
-        type: request.type,
+        approvalType: request.type,
         status: 'submitted',
         submittedBy: request.submittedBy,
         submittedByEmail: request.submittedByEmail,
         sessionId: request.sessionId,
         formData: JSON.stringify(request.formData),
         attachments: request.attachments ? JSON.stringify(request.attachments) : null,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
+        approvalCreatedAt: new Date().toISOString(),
+        approvalUpdatedAt: new Date().toISOString(),
       }),
     });
 
@@ -356,9 +356,11 @@ class ApprovalService {
     const data = await response.json() as BudibaseRowResponse;
 
     // Transform Budibase row to ApprovalRequest
+    // Note: Budibase uses approvalType, approvalCreatedAt, approvalUpdatedAt, approvalCompletedAt
+    // to avoid reserved column names (type, createdAt, updatedAt)
     const approval: ApprovalRequest = {
       id: data._id,
-      type: data.type as ApprovalType,
+      type: (data.approvalType || data.type) as ApprovalType,
       status: data.status as ApprovalStatus,
       submittedBy: data.submittedBy as string,
       submittedByEmail: data.submittedByEmail as string,
@@ -367,9 +369,9 @@ class ApprovalService {
       attachments: data.attachments ? (typeof data.attachments === 'string' ? JSON.parse(data.attachments) : data.attachments as string[]) : undefined,
       steps: data.steps ? (typeof data.steps === 'string' ? JSON.parse(data.steps) : data.steps as ApprovalStep[]) : [],
       currentStep: data.currentStep as ApprovalStepName | null,
-      createdAt: data.createdAt as string,
-      updatedAt: data.updatedAt as string,
-      completedAt: data.completedAt as string | undefined,
+      createdAt: (data.approvalCreatedAt || data.createdAt) as string,
+      updatedAt: (data.approvalUpdatedAt || data.updatedAt) as string,
+      completedAt: (data.approvalCompletedAt || data.completedAt) as string | undefined,
       rejectionReason: data.rejectionReason as string | undefined,
     };
 
@@ -458,9 +460,11 @@ class ApprovalService {
     const data = await response.json() as BudibaseSearchResponse;
     
     // Transform Budibase rows to ApprovalRequest objects
+    // Note: Budibase uses approvalType, approvalCreatedAt, approvalUpdatedAt, approvalCompletedAt
+    // to avoid reserved column names (type, createdAt, updatedAt)
     return (data.data || []).map(row => ({
       id: row._id,
-      type: row.type as ApprovalType,
+      type: (row.approvalType || row.type) as ApprovalType,
       status: row.status as ApprovalStatus,
       submittedBy: row.submittedBy as string,
       submittedByEmail: row.submittedByEmail as string,
@@ -469,9 +473,9 @@ class ApprovalService {
       attachments: row.attachments ? (typeof row.attachments === 'string' ? JSON.parse(row.attachments) : row.attachments as string[]) : undefined,
       steps: row.steps ? (typeof row.steps === 'string' ? JSON.parse(row.steps) : row.steps as ApprovalStep[]) : [],
       currentStep: row.currentStep as ApprovalStepName | null,
-      createdAt: row.createdAt as string,
-      updatedAt: row.updatedAt as string,
-      completedAt: row.completedAt as string | undefined,
+      createdAt: (row.approvalCreatedAt || row.createdAt) as string,
+      updatedAt: (row.approvalUpdatedAt || row.updatedAt) as string,
+      completedAt: (row.approvalCompletedAt || row.completedAt) as string | undefined,
       rejectionReason: row.rejectionReason as string | undefined,
     }));
   }
