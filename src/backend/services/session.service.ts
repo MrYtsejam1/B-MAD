@@ -129,6 +129,21 @@ export class SessionService {
   async setRequiredFields(session: AgentSession, fields: string[]): Promise<AgentSession> {
     session.requiredFields = fields;
     session.gaps = fields.filter(f => !session.answers[f]);
+    
+    // Dynamically set maxQuestions based on gaps
+    // If there are many missing fields, allow more questions to collect all required data
+    // Only limit to 3 if most data is already provided
+    const gapsCount = session.gaps.length;
+    if (gapsCount > this.maxQuestions) {
+      // Allow asking for all missing required fields
+      session.maxQuestions = gapsCount;
+      logger.info('Increased maxQuestions to collect all required fields', { 
+        sessionId: session.id, 
+        gapsCount, 
+        maxQuestions: session.maxQuestions 
+      });
+    }
+    
     await this.saveSession(session);
     return session;
   }
@@ -137,11 +152,30 @@ export class SessionService {
     session.extractedData = { ...session.extractedData, ...data };
     
     for (const [key, value] of Object.entries(data)) {
-      if (value && typeof value === 'string' && value.trim()) {
-        session.answers[key] = value;
-        session.gaps = session.gaps.filter(g => g !== key);
+      if (value !== null && value !== undefined) {
+        // Convert non-string values to strings for answers
+        let stringValue: string;
+        if (typeof value === 'string') {
+          stringValue = value.trim();
+        } else if (Array.isArray(value)) {
+          stringValue = value.join(', ');
+        } else {
+          stringValue = String(value);
+        }
+        
+        if (stringValue) {
+          session.answers[key] = stringValue;
+          session.gaps = session.gaps.filter(g => g !== key);
+        }
       }
     }
+    
+    logger.info('Set extracted data', { 
+      sessionId: session.id, 
+      dataKeys: Object.keys(data),
+      answersKeys: Object.keys(session.answers),
+      remainingGaps: session.gaps 
+    });
     
     await this.saveSession(session);
     return session;
@@ -215,22 +249,33 @@ export class SessionService {
 
   buildSessionResponse(
     session: AgentSession, 
-    action: 'clarify' | 'generate',
-    questionResult?: QuestionResult,
+    action: 'clarify' | 'generate' | 'file_upload',
+    questionResult?: QuestionResult | { message: string; accept: string; endpoint: string },
     formOutput?: unknown
   ): SessionResponse {
+    // Use combined data (extractedData + answers) so UI shows user's responses
+    const combinedData = this.getCombinedData(session);
+    
     const response: SessionResponse = {
       sessionId: session.id,
       action,
       maxQuestions: session.maxQuestions,
       intent: session.intent,
       complexity: session.complexity,
-      extractedData: session.extractedData,
+      extractedData: combinedData,
     };
 
-    if (action === 'clarify' && questionResult?.question) {
+    if (action === 'clarify' && questionResult && 'question' in questionResult && questionResult.question) {
       response.question = questionResult.question;
       response.questionNumber = session.questionNumber;
+    }
+
+    if (action === 'file_upload' && questionResult && 'message' in questionResult) {
+      response.fileUpload = {
+        message: questionResult.message,
+        accept: questionResult.accept,
+        endpoint: questionResult.endpoint,
+      };
     }
 
     if (action === 'generate' && formOutput) {
@@ -251,5 +296,29 @@ export class SessionService {
     }
 
     return session.gaps.length === 0 || session.questionNumber >= session.maxQuestions;
+  }
+
+  /**
+   * Get combined data from extractedData and answers
+   * Answers take precedence over extractedData
+   */
+  getCombinedData(session: AgentSession): Record<string, unknown> {
+    const combined: Record<string, unknown> = {};
+    
+    // Start with extractedData
+    if (session.extractedData) {
+      Object.assign(combined, session.extractedData);
+    }
+    
+    // Override with answers (user's explicit responses)
+    if (session.answers) {
+      for (const [key, value] of Object.entries(session.answers)) {
+        if (value && typeof value === 'string' && value.trim()) {
+          combined[key] = value;
+        }
+      }
+    }
+    
+    return combined;
   }
 }

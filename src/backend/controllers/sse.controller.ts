@@ -30,7 +30,7 @@ export class SSEController {
     });
 
     try {
-      const { userInput, mode, scenario } = req.body;
+      const { userInput, mode, model, scenario } = req.body;
 
       if (!userInput) {
         this.sendEvent(res, 'error', { message: 'Missing userInput parameter' });
@@ -38,7 +38,8 @@ export class SSEController {
         return;
       }
 
-      const request: SessionStartRequest = { userInput, mode, scenario };
+      console.log('[SSE] Starting session with model:', model);
+      const request: SessionStartRequest = { userInput, mode, model, scenario };
 
       const result = await this.agent.startSession(
         request,

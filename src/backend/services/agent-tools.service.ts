@@ -78,6 +78,8 @@ export class AgentToolsService {
       const server = this.mcpGateway.getServer(serverId);
       const capabilities = this.mcpGateway.getCapabilities(serverId);
 
+      // Flatten capabilities to top level so formSchema is directly accessible
+      // This fixes the bug where generateOutput couldn't find formSchema
       return {
         id: server.id,
         name: server.name,
@@ -89,7 +91,7 @@ export class AgentToolsService {
           path: op.path,
           description: op.description,
         })),
-        capabilities,
+        ...capabilities,  // Spread capabilities to top level (includes formSchema)
         requirements: capabilities.requirements,
       };
     } catch (error: any) {
@@ -138,5 +140,20 @@ export class AgentToolsService {
     } catch (error: any) {
       throw new Error(`Failed to extract NLP data: ${error.message}`);
     }
+  }
+
+  /**
+   * Detect which MCP server matches the user input based on configured prompts
+   * Uses Hebrew and English keywords from MCP config for auto-detection
+   */
+  detectMcpServerFromInput(userInput: string): string | null {
+    return this.mcpGateway.detectServerFromInput(userInput);
+  }
+
+  /**
+   * Get all MCP servers with their prompts for intent detection
+   */
+  getMcpIntentPrompts(): Map<string, { he: string[]; en: string[]; serverId: string; name: string }> {
+    return this.mcpGateway.getIntentPrompts();
   }
 }

@@ -154,38 +154,62 @@
         }
 
         .generated-form {
-            background: #f9f9f9;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            padding: 25px;
+            background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid rgba(226, 232, 240, 0.8);
+            border-radius: 16px;
+            padding: 32px 40px;
             margin-top: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 20px 25px -5px rgba(0, 0, 0, 0.05);
         }
 
         .generated-form h3 {
-            color: #667eea;
-            margin-bottom: 20px;
+            font-size: 24px;
+            font-weight: 700;
+            letter-spacing: -0.025em;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 24px;
         }
 
         .form-field {
-            margin-bottom: 20px;
+            margin-bottom: 24px;
         }
 
         .form-field label {
             display: block;
-            margin-bottom: 6px;
-            color: #333;
+            margin-bottom: 8px;
+            color: #374151;
             font-weight: 500;
+            font-size: 14px;
+            letter-spacing: 0.01em;
         }
 
         .form-field input,
         .form-field select,
         .form-field textarea {
             width: 100%;
-            padding: 10px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
-            font-size: 14px;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 15px;
             font-family: inherit;
+            background: #ffffff;
+            color: #1e293b;
+            transition: all 0.2s ease;
+            box-sizing: border-box;
+        }
+
+        .form-field input::placeholder,
+        .form-field textarea::placeholder {
+            color: #94a3b8;
+        }
+
+        .form-field input:hover,
+        .form-field select:hover,
+        .form-field textarea:hover {
+            border-color: #cbd5e1;
         }
 
         .form-field input:focus,
@@ -193,11 +217,59 @@
         .form-field textarea:focus {
             outline: none;
             border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15);
+        }
+
+        .form-field select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%2394a3b8'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 12px center;
+            background-size: 20px;
+            padding-right: 44px;
+        }
+
+        .form-field input[type="file"] {
+            padding: 10px 12px;
+            cursor: pointer;
+            background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+        }
+
+        .form-field input[type="date"] {
+            cursor: pointer;
+        }
+
+        .form-field textarea {
+            resize: vertical;
+            min-height: 100px;
+            line-height: 1.5;
         }
 
         .required {
-            color: #e74c3c;
-            margin-left: 3px;
+            color: #ef4444;
+            margin-left: 2px;
+        }
+
+        .generated-form .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 28px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 600;
+            width: 100%;
+            margin-top: 8px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 14px 0 rgba(102, 126, 234, 0.35);
+            letter-spacing: 0.02em;
+        }
+
+        .generated-form .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px 0 rgba(102, 126, 234, 0.45);
         }
 
         .stats {
@@ -328,6 +400,230 @@
             font-size: 14px;
         }
 
+        /* OCR Status Styles */
+        .file-upload-container {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .ocr-status {
+            font-size: 13px;
+            padding: 8px 12px;
+            border-radius: 4px;
+            margin-top: 5px;
+        }
+
+        .ocr-processing {
+            color: #1565c0;
+            background: #e3f2fd;
+            padding: 8px 12px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .ocr-success {
+            color: #2e7d32;
+            background: #e8f5e9;
+            padding: 8px 12px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .ocr-error {
+            color: #c62828;
+            background: #ffebee;
+            padding: 8px 12px;
+            border-radius: 4px;
+            display: inline-block;
+        }
+
+        .ocr-warning {
+            color: #f57c00;
+            background: #fff3e0;
+            padding: 4px 8px;
+            border-radius: 4px;
+            display: inline-block;
+            font-size: 12px;
+        }
+
+        /* Chatbot Input Styles */
+        .chatbot-input-container {
+            margin-top: 16px;
+            padding: 0;
+        }
+
+        .chatbot-input-wrapper {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: #ffffff;
+            border: 2px solid #e2e8f0;
+            border-radius: 24px;
+            padding: 6px 6px 6px 16px;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .chatbot-input-wrapper:focus-within {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.15), 0 2px 8px rgba(0, 0, 0, 0.04);
+        }
+
+        .chatbot-input {
+            flex: 1;
+            border: none;
+            outline: none;
+            font-size: 15px;
+            padding: 10px 0;
+            background: transparent;
+            color: #1e293b;
+            font-family: inherit;
+        }
+
+        .chatbot-input::placeholder {
+            color: #94a3b8;
+        }
+
+        .chatbot-send-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 40px;
+            height: 40px;
+            border: none;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            flex-shrink: 0;
+        }
+
+        .chatbot-send-btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .chatbot-send-btn:active {
+            transform: scale(0.95);
+        }
+
+        .chatbot-send-btn svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        /* File Upload Request Styles */
+        .file-upload-request-container {
+            margin-top: 16px;
+        }
+
+        .file-upload-request {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .file-upload-dropzone {
+            width: 100%;
+            padding: 32px 24px;
+            border: 2px dashed #cbd5e1;
+            border-radius: 12px;
+            background: linear-gradient(145deg, #f8fafc 0%, #f1f5f9 100%);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .file-upload-dropzone:hover,
+        .file-upload-dropzone.dragover {
+            border-color: #667eea;
+            background: linear-gradient(145deg, #f0f4ff 0%, #e8edff 100%);
+        }
+
+        .file-upload-dropzone svg {
+            color: #94a3b8;
+            margin-bottom: 12px;
+        }
+
+        .file-upload-dropzone p {
+            color: #64748b;
+            margin-bottom: 12px;
+            font-size: 14px;
+        }
+
+        .file-upload-btn {
+            display: inline-block;
+            padding: 10px 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .file-upload-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .file-upload-status {
+            min-height: 24px;
+        }
+
+        .skip-upload-btn {
+            background: #94a3b8;
+            padding: 8px 16px;
+            font-size: 14px;
+            border-radius: 20px;
+        }
+
+        .skip-upload-btn:hover {
+            background: #64748b;
+        }
+
+        /* Chat bubble styles for agent/user messages */
+        .log-entry.log-agent {
+            background: linear-gradient(135deg, #f3e5f5 0%, #e8daef 100%);
+            border-left: 4px solid #9c27b0;
+            border-radius: 12px 12px 12px 4px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            max-width: 85%;
+        }
+
+        .log-entry.log-user {
+            background: linear-gradient(135deg, #e3f2fd 0%, #d1e8fc 100%);
+            border-left: none;
+            border-right: 4px solid #2196f3;
+            border-radius: 12px 12px 4px 12px;
+            padding: 12px 16px;
+            margin-bottom: 8px;
+            margin-left: auto;
+            max-width: 85%;
+            text-align: right;
+        }
+
+        .log-entry.log-system {
+            background: #f1f5f9;
+            border-left: 3px solid #64748b;
+            border-radius: 8px;
+            padding: 8px 12px;
+            font-size: 12px;
+            opacity: 0.9;
+            margin-bottom: 6px;
+        }
+
+        .log-entry.log-error {
+            background: linear-gradient(135deg, #ffebee 0%, #ffcdd2 100%);
+            border-left: 4px solid #f44336;
+            border-radius: 8px;
+            padding: 12px 16px;
+        }
+
         .version-footer {
             text-align: center;
             color: white;
@@ -346,73 +642,16 @@
         </div>
 
         <div class="demo-card">
-            <h2>📋 Sprint 1 Implementation Complete</h2>
-            <div class="stats">
-                <div class="stat-card">
-                    <h4>Stories Completed</h4>
-                    <p>7/7</p>
-                </div>
-                <div class="stat-card">
-                    <h4>Story Points</h4>
-                    <p>39/39</p>
-                </div>
-                <div class="stat-card">
-                    <h4>Tests Passing</h4>
-                    <p>116/116</p>
-                </div>
-                <div class="stat-card">
-                    <h4>Test Coverage</h4>
-                    <p>100%</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="demo-card">
-            <h2>✨ Features Implemented</h2>
-            <div class="features">
-                <div class="feature">
-                    <h4>🤖 LangChain Integration</h4>
-                    <p>AI-powered form generation using OpenAI GPT-4 or Anthropic Claude with structured output parsing</p>
-                </div>
-                <div class="feature">
-                    <h4>🔒 JWT Authentication</h4>
-                    <p>Secure API endpoints with JSON Web Token authentication and rate limiting (10 req/min)</p>
-                </div>
-                <div class="feature">
-                    <h4>✅ Schema Validation</h4>
-                    <p>Comprehensive validation with circular dependency detection using DFS algorithm</p>
-                </div>
-                <div class="feature">
-                    <h4>⚡ Redis Caching</h4>
-                    <p>High-performance caching with TTL support and cache statistics tracking</p>
-                </div>
-                <div class="feature">
-                    <h4>🎨 Form Renderer</h4>
-                    <p>Dynamic form rendering with conditional display logic and multiple themes/layouts</p>
-                </div>
-                <div class="feature">
-                    <h4>📝 Field Components</h4>
-                    <p>Reusable field components (Text, Email, Select, Checkbox) with validation integration</p>
-                </div>
-            </div>
-        </div>
-
-        <div class="demo-card">
-            <h2>🎯 API Demo - Generate Form from Natural Language</h2>
+            <h2>AI Form Generator</h2>
             <p style="color: #666; margin-bottom: 20px;">
-                Choose between Simple mode (direct form generation) or Advanced mode (intelligent agent with streaming, MCP integration, and clarifying questions).
+                Intelligent agent with streaming, MCP integration, and clarifying questions. Describe your form in natural language (Hebrew or English).
             </p>
 
-            <!-- Mode Selection -->
-            <div class="input-group" style="margin-bottom: 20px;">
-                <label style="display: block; margin-bottom: 10px; font-weight: 600;">Select Mode:</label>
+            <!-- Mode Selection - Hidden, always advanced mode -->
+            <div class="input-group" style="margin-bottom: 20px; display: none;">
                 <div style="display: flex; gap: 15px;">
                     <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="radio" name="mode" value="simple" checked style="margin-right: 8px;">
-                        <span>Simple Mode (Direct Generation)</span>
-                    </label>
-                    <label style="display: flex; align-items: center; cursor: pointer;">
-                        <input type="radio" name="mode" value="advanced" style="margin-right: 8px;">
+                        <input type="radio" name="mode" value="advanced" checked style="margin-right: 8px;">
                         <span>Advanced Mode (Agent + Streaming)</span>
                     </label>
                 </div>
@@ -422,120 +661,39 @@
                 <h3>Try It Out</h3>
                 <div class="input-group">
                     <label for="prompt">Describe the form you want to create:</label>
-                    <textarea 
-                        id="prompt" 
+                    <textarea
+                        id="prompt"
                         placeholder="Example: Create a contact form with name, email, phone number, and message fields. Make email and name required."
                     >Create a user registration form with username, email, password, confirm password, and agree to terms checkbox. Make all fields required.</textarea>
                 </div>
-                
+
                 <div class="input-group" style="margin-top: 15px;">
                     <label for="modelSelect">Select AI Model:</label>
                     <select id="modelSelect" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: white;">
-                        <option value="zai-org/GLM-4-32B-0414:featherless-ai" selected>GLM-4-32B-0414 → JSON Schema</option>
-                        <option value="Qwen/Qwen2.5-Coder-7B-Instruct:featherless-ai">Qwen2.5-Coder-7B → Web Component</option>
+                        <option value="Qwen/Qwen2.5-Coder-7B-Instruct:featherless-ai" selected>Qwen2.5-Coder-7B → Web Component</option>
                         <option value="agentica-org/DeepCoder-14B-Preview:featherless-ai">DeepCoder-14B → Web Component</option>
                     </select>
-                </div>
-
-                <div class="input-group" style="margin-top: 15px;" id="mcpServerGroup">
+                </div>                <!-- MCP Server selection hidden - agent auto-detects context from user input -->
+                <div class="input-group" style="margin-top: 15px; display: none;" id="mcpServerGroup">
                     <label for="mcpServerSelect">MCP Server (Advanced Mode):</label>
                     <select id="mcpServerSelect" style="width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: white;">
                         <option value="auto" selected>Auto-detect</option>
-                        <option value="invoice">Invoice Submission</option>
-                        <option value="travel">Travel Booking</option>
                     </select>
                 </div>
-                
-                <!-- Simple Mode Buttons -->
-                <div id="simpleModeButtons" style="margin-top: 15px;">
-                    <button class="btn" id="generateBtn">
-                        Generate Form (Demo Mode)
-                    </button>
-                    <button class="btn" id="generateRealBtn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); margin-left: 10px;">
-                        Generate with AI (HF)
-                    </button>
-                </div>
 
-                <!-- Advanced Mode Buttons -->
-                <div id="advancedModeButtons" style="margin-top: 15px; display: none;">
+                <!-- Agent Conversation Button -->
+                <div id="advancedModeButtons" style="margin-top: 15px;">
                     <button class="btn" id="generateAgentBtn" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
                         🤖 Start Agent Conversation
                     </button>
                 </div>
             </div>
 
-            <!-- Simple Mode Result -->
-            <div id="result"></div>
-
-            <!-- Advanced Mode Stream Log -->
-            <div id="agentStreamContainer" style="display: none; margin-top: 20px;">
+            <!-- Agent Stream Log -->
+            <div id="agentStreamContainer" style="margin-top: 20px;">
                 <h3>Agent Stream</h3>
                 <div id="agentStreamLog" style="background: #f9f9f9; border: 2px solid #e0e0e0; border-radius: 8px; padding: 15px; max-height: 400px; overflow-y: auto; font-family: monospace; font-size: 13px;" role="log" aria-live="polite" aria-atomic="false"></div>
                 <div id="agentResult" style="margin-top: 20px;"></div>
-            </div>
-        </div>
-
-        <div class="demo-card">
-            <h2>📚 Architecture Overview</h2>
-            <div class="demo-section">
-                <h3>Backend Stack</h3>
-                <ul style="color: #666; line-height: 1.8; margin-left: 20px;">
-                    <li><strong>Node.js + Express</strong> - REST API server</li>
-                    <li><strong>TypeScript</strong> - Type-safe development</li>
-                    <li><strong>LangChain.js</strong> - AI integration layer</li>
-                    <li><strong>Redis</strong> - Caching layer</li>
-                    <li><strong>Jest</strong> - Testing framework</li>
-                    <li><strong>Zod</strong> - Schema validation</li>
-                </ul>
-            </div>
-
-            <div class="demo-section">
-                <h3>Frontend Stack</h3>
-                <ul style="color: #666; line-height: 1.8; margin-left: 20px;">
-                    <li><strong>TypeScript</strong> - Type-safe components</li>
-                    <li><strong>Web Components Pattern</strong> - Reusable UI components</li>
-                    <li><strong>Factory Pattern</strong> - Dynamic component creation</li>
-                    <li><strong>Validation Service</strong> - Client-side validation</li>
-                </ul>
-            </div>
-        </div>
-
-        <div class="demo-card">
-            <h2>🔗 API Endpoints</h2>
-            <div class="demo-section">
-                <h3>POST /api/v1/forms/generate</h3>
-                <p style="color: #666; margin-bottom: 15px;">Generate a form schema from natural language description</p>
-                <div class="code-block">
-{
-  "prompt": "Create a contact form with name, email, and message",
-  "context": {
-    "purpose": "customer support",
-    "audience": "general users"
-  }
-}
-                </div>
-            </div>
-        </div>
-
-        <div class="demo-card">
-            <h2>📊 Test Results</h2>
-            <div class="demo-section">
-                <h3>Backend Tests (74/74 passing)</h3>
-                <ul style="color: #666; line-height: 1.8; margin-left: 20px;">
-                    <li>✅ STORY-001: LangChain Service - 25/25 tests</li>
-                    <li>✅ STORY-002: API Endpoint - 19/19 tests</li>
-                    <li>✅ STORY-003: Validation Service - 11/11 tests</li>
-                    <li>✅ STORY-004: Caching Service - 19/19 tests</li>
-                </ul>
-            </div>
-
-            <div class="demo-section">
-                <h3>Frontend Tests (42/42 passing)</h3>
-                <ul style="color: #666; line-height: 1.8; margin-left: 20px;">
-                    <li>✅ STORY-005: Form Renderer - 15/15 tests</li>
-                    <li>✅ STORY-006: Field Components - 11/11 tests</li>
-                    <li>✅ STORY-007: Frontend Validation - 16/16 tests</li>
-                </ul>
             </div>
         </div>
 

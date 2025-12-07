@@ -30,6 +30,7 @@ export interface ConversationMessage {
 export interface SessionStartRequest {
   userInput: string;
   mode?: 'chat' | 'wizard';
+  model?: string;
   scenario?: 'invoice' | 'travel' | 'auto';
 }
 
@@ -40,7 +41,7 @@ export interface SessionMessageRequest {
 
 export interface SessionResponse {
   sessionId: string;
-  action: 'clarify' | 'generate';
+  action: 'clarify' | 'generate' | 'file_upload';
   question?: string;
   questionNumber?: number;
   maxQuestions: number;
@@ -50,6 +51,11 @@ export interface SessionResponse {
   form?: unknown;
   component?: unknown;
   reasoning?: string;
+  fileUpload?: {
+    message: string;
+    accept: string;
+    endpoint: string;
+  };
 }
 
 export interface QuestionResult {
