@@ -1,7 +1,7 @@
 import { InferenceClient } from '@huggingface/inference';
 import sharp from 'sharp';
 import { PDFParse } from 'pdf-parse';
-import { OCRRequest, OCRResult, OCRConfig, InvoiceData, FieldData } from '../models/ocr.model';
+import { OCRRequest, OCRResult, OCRConfig, InvoiceData } from '../models/ocr.model';
 
 // Vision-language model for OCR extraction
 const VL_MODEL = 'Qwen/Qwen2.5-VL-7B-Instruct';
