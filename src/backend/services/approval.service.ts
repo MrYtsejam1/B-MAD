@@ -64,23 +64,16 @@ class ApprovalService {
    * Create a new approval request
    */
   async createApproval(request: CreateApprovalRequest): Promise<CreateApprovalResponse> {
-    console.log('[ApprovalService] Creating approval request:', {
-      type: request.type,
-      submittedBy: request.submittedBy,
-      sessionId: request.sessionId,
-    });
-
     try {
-      if (this.useMockMode) {
+      if (this.isMockMode()) {
         return this.createMockApproval(request);
       }
-
       return this.createBudibaseApproval(request);
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ApprovalService] Error creating approval:', error);
       return {
         success: false,
-        error: error.message || 'Failed to create approval request',
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -89,19 +82,16 @@ class ApprovalService {
    * Get approval status by ID
    */
   async getApprovalStatus(approvalId: string): Promise<ApprovalStatusResponse> {
-    console.log('[ApprovalService] Getting approval status:', approvalId);
-
     try {
-      if (this.useMockMode) {
+      if (this.isMockMode()) {
         return this.getMockApprovalStatus(approvalId);
       }
-
       return this.getBudibaseApprovalStatus(approvalId);
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ApprovalService] Error getting approval status:', error);
       return {
         success: false,
-        error: error.message || 'Failed to get approval status',
+        error: error instanceof Error ? error.message : 'Unknown error',
       };
     }
   }
@@ -264,33 +254,10 @@ class ApprovalService {
       updatedAt: now,
     };
 
-    // Create approval steps
-    const steps: ApprovalStep[] = stepNames.map((stepName, index) => ({
-      id: `step-${approvalId}-${index}`,
-      requestId: approvalId,
-      stepName: stepName,
-      stepOrder: index + 1,
-      assignedTo: this.getMockApproverEmail(stepName),
-      assignedToName: this.getMockApproverName(stepName),
-      status: index === 0 ? 'pending' : 'pending', // First step is active
-      comment: undefined,
-      actionAt: undefined,
-      actionBy: undefined,
-    }));
+    this.store.approvals.set(id, approval);
 
-    // Only first step should be pending, others wait
-    steps.forEach((step, index) => {
-      if (index > 0) {
-        step.status = 'pending';
-      }
-    });
-
-    // Store
-    this.store.requests.set(approvalId, approval);
-    this.store.steps.set(approvalId, steps);
-
-    console.log('[ApprovalService] Mock approval created:', {
-      approvalId,
+    console.log('[ApprovalService] Created mock approval:', {
+      id,
       type: request.type,
       steps: stepNames,
     });
