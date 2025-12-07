@@ -1,13 +1,17 @@
 /**
  * Approval Workflow Models
  * 
- * Data models for the Phase 2 approval workflow integration with Budibase.
+ * Data models for the Phase 2 approval workflow system.
+ * Supports both travel and invoice approval flows with Budibase integration.
  */
 
-// Approval request types
+// Approval types
 export type ApprovalType = 'travel' | 'invoice';
 
-// Approval status values
+// Travel approval status flow:
+// draft -> submitted -> manager_review -> manager_approved -> travel_office_review -> 
+// travel_office_approved -> security_review -> security_approved -> booked
+// (can be rejected at any step)
 export type TravelApprovalStatus = 
   | 'draft'
   | 'submitted'
@@ -20,6 +24,10 @@ export type TravelApprovalStatus =
   | 'rejected'
   | 'booked';
 
+// Invoice approval status flow:
+// draft -> submitted -> manager_review -> manager_approved -> finance_review -> 
+// finance_approved -> reimbursed
+// (can be rejected at any step)
 export type InvoiceApprovalStatus = 
   | 'draft'
   | 'submitted'
@@ -39,33 +47,25 @@ export type ApprovalStepName =
   | 'security'
   | 'finance';
 
-// Approval step status
 export type StepStatus = 'pending' | 'approved' | 'rejected' | 'skipped';
 
 /**
- * Approval request creation payload
+ * Individual approval step in the workflow
  */
-export interface CreateApprovalRequest {
-  type: ApprovalType;
-  submittedBy: string;
-  submittedByEmail: string;
-  sessionId: string;
-  formData: Record<string, any>;
-  attachments?: ApprovalAttachment[];
+export interface ApprovalStep {
+  id: string;
+  name: ApprovalStepName;
+  status: StepStatus;
+  approverEmail?: string;
+  approverName?: string;
+  approvedAt?: string;
+  rejectedAt?: string;
+  comment?: string;
+  order: number;
 }
 
 /**
- * Approval attachment (for invoices)
- */
-export interface ApprovalAttachment {
-  filename: string;
-  url: string;
-  mimeType: string;
-  size?: number;
-}
-
-/**
- * Approval request record
+ * Main approval request record
  */
 export interface ApprovalRequest {
   id: string;
@@ -152,6 +152,17 @@ export interface ApproverConfig {
   email: string;
   name: string;
   department?: string;
+ * Webhook payload from Budibase
+ */
+export interface BudibaseWebhookPayload {
+  event: 'approval_updated' | 'step_completed' | 'approval_rejected';
+  approvalId: string;
+  step?: ApprovalStepName;
+  status: ApprovalStatus;
+  approverEmail?: string;
+  approverName?: string;
+  comment?: string;
+  timestamp: string;
 }
 
 /**
@@ -160,12 +171,13 @@ export interface ApproverConfig {
 export interface ApprovalWorkflowConfig {
   travel: {
     steps: ApprovalStepName[];
-    skipSecurityForDomestic?: boolean;
+    notifyOnSubmit: string[];
+    notifyOnComplete: string[];
   };
   invoice: {
     steps: ApprovalStepName[];
-    highValueThreshold?: number;
-    additionalApproversForHighValue?: ApprovalStepName[];
+    notifyOnSubmit: string[];
+    notifyOnComplete: string[];
   };
 }
 
@@ -175,12 +187,13 @@ export interface ApprovalWorkflowConfig {
 export const DEFAULT_WORKFLOW_CONFIG: ApprovalWorkflowConfig = {
   travel: {
     steps: ['manager', 'travel_office', 'security'],
-    skipSecurityForDomestic: false,
+    notifyOnSubmit: ['manager'],
+    notifyOnComplete: ['submitter', 'travel_office'],
   },
   invoice: {
     steps: ['manager', 'finance'],
-    highValueThreshold: 10000,
-    additionalApproversForHighValue: [],
+    notifyOnSubmit: ['manager'],
+    notifyOnComplete: ['submitter', 'finance'],
   },
 };
 
@@ -209,34 +222,34 @@ export function getStatusAfterApproval(
   type: ApprovalType,
   step: ApprovalStepName
 ): ApprovalStatus {
-  const statusMap: Record<ApprovalType, Record<ApprovalStepName, ApprovalStatus>> = {
-    travel: {
-      manager: 'manager_approved',
-      travel_office: 'travel_office_approved',
-      security: 'security_approved',
-      finance: 'manager_approved', // Not used for travel
-    },
-    invoice: {
-      manager: 'manager_approved',
-      finance: 'finance_approved',
-      travel_office: 'manager_approved', // Not used for invoice
-      security: 'manager_approved', // Not used for invoice
-    },
-  };
-  
-  return statusMap[type][step];
+  if (type === 'travel') {
+    switch (step) {
+      case 'manager':
+        return 'manager_approved';
+      case 'travel_office':
+        return 'travel_office_approved';
+      case 'security':
+        return 'security_approved';
+      default:
+        return 'submitted';
+    }
+  } else {
+    switch (step) {
+      case 'manager':
+        return 'manager_approved';
+      case 'finance':
+        return 'finance_approved';
+      default:
+        return 'submitted';
+    }
+  }
 }
 
 /**
- * Check if approval is complete
+ * Check if approval is complete (fully approved or final state)
  */
 export function isApprovalComplete(status: ApprovalStatus): boolean {
-  return [
-    'security_approved',
-    'finance_approved',
-    'booked',
-    'reimbursed',
-  ].includes(status);
+  return ['booked', 'reimbursed', 'security_approved', 'finance_approved'].includes(status);
 }
 
 /**
@@ -244,4 +257,38 @@ export function isApprovalComplete(status: ApprovalStatus): boolean {
  */
 export function isApprovalRejected(status: ApprovalStatus): boolean {
   return status === 'rejected';
+}
+
+/**
+ * Budibase API response types
+ * Note: Budibase uses approvalType, approvalCreatedAt, approvalUpdatedAt, approvalCompletedAt
+ * to avoid reserved column names (type, createdAt, updatedAt)
+ */
+export interface BudibaseRowResponse {
+  _id: string;
+  // New column names (avoiding Budibase reserved names)
+  approvalType?: string;
+  approvalCreatedAt?: string;
+  approvalUpdatedAt?: string;
+  approvalCompletedAt?: string;
+  // Legacy column names (for backwards compatibility)
+  type?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  completedAt?: string;
+  // Standard columns
+  status?: string;
+  submittedBy?: string;
+  submittedByEmail?: string;
+  sessionId?: string;
+  formData?: string | Record<string, unknown>;
+  attachments?: string | string[];
+  steps?: string | ApprovalStep[];
+  currentStep?: string;
+  rejectionReason?: string;
+  [key: string]: unknown;
+}
+
+export interface BudibaseSearchResponse {
+  data: BudibaseRowResponse[];
 }

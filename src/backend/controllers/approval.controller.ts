@@ -6,14 +6,15 @@
 
 import { Request, Response } from 'express';
 import { approvalService } from '../services/approval.service';
-import {
-  CreateApprovalRequest,
+import { 
+  CreateApprovalRequest, 
   BudibaseWebhookPayload,
+  ApprovalType 
 } from '../models/approval.model';
 
 /**
  * Create a new approval request
- * POST /api/approvals
+ * POST /api/v1/approvals
  */
 export async function createApproval(req: Request, res: Response): Promise<void> {
   try {
@@ -47,6 +48,10 @@ export async function createApproval(req: Request, res: Response): Promise<void>
       res.status(400).json({
         success: false,
         error: 'Missing sessionId field.',
+    if (!submittedBy || !submittedByEmail) {
+      res.status(400).json({
+        success: false,
+        error: 'Missing required fields: submittedBy and submittedByEmail',
       });
       return;
     }
@@ -54,37 +59,39 @@ export async function createApproval(req: Request, res: Response): Promise<void>
     if (!formData || typeof formData !== 'object') {
       res.status(400).json({
         success: false,
-        error: 'Missing or invalid formData field.',
+        error: 'Missing or invalid formData',
       });
       return;
     }
 
-    const result = await approvalService.createApproval({
-      type,
+    const request: CreateApprovalRequest = {
+      type: type as ApprovalType,
       submittedBy,
-      submittedByEmail: submittedByEmail || '',
+      submittedByEmail,
       sessionId,
       formData,
       attachments,
-    });
+    };
+
+    const result = await approvalService.createApproval(request);
 
     if (result.success) {
       res.status(201).json(result);
     } else {
       res.status(500).json(result);
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('[ApprovalController] Error creating approval:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Internal server error',
+      error: error instanceof Error ? error.message : 'Internal server error',
     });
   }
 }
 
 /**
  * Get approval status by ID
- * GET /api/approvals/:id
+ * GET /api/v1/approvals/:id
  */
 export async function getApprovalStatus(req: Request, res: Response): Promise<void> {
   try {
@@ -93,7 +100,7 @@ export async function getApprovalStatus(req: Request, res: Response): Promise<vo
     if (!id) {
       res.status(400).json({
         success: false,
-        error: 'Missing approval ID.',
+        error: 'Missing approval ID',
       });
       return;
     }
@@ -105,18 +112,18 @@ export async function getApprovalStatus(req: Request, res: Response): Promise<vo
     } else {
       res.status(404).json(result);
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('[ApprovalController] Error getting approval status:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Internal server error',
+      error: error instanceof Error ? error.message : 'Internal server error',
     });
   }
 }
 
 /**
  * Get approval history for a session
- * GET /api/approvals/session/:sessionId/history
+ * GET /api/v1/approvals/session/:sessionId/history
  */
 export async function getApprovalHistory(req: Request, res: Response): Promise<void> {
   try {
@@ -125,29 +132,29 @@ export async function getApprovalHistory(req: Request, res: Response): Promise<v
     if (!sessionId) {
       res.status(400).json({
         success: false,
-        error: 'Missing session ID.',
+        error: 'Missing session ID',
       });
       return;
     }
 
-    const history = await approvalService.getApprovalHistory(sessionId);
+    const approvals = await approvalService.getApprovalHistory(sessionId);
 
     res.status(200).json({
       success: true,
-      history,
+      approvals,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[ApprovalController] Error getting approval history:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Internal server error',
+      error: error instanceof Error ? error.message : 'Internal server error',
     });
   }
 }
 
 /**
  * Get all pending approvals (admin endpoint)
- * GET /api/approvals/pending
+ * GET /api/v1/approvals/pending
  */
 export async function getPendingApprovals(_req: Request, res: Response): Promise<void> {
   try {
@@ -155,21 +162,20 @@ export async function getPendingApprovals(_req: Request, res: Response): Promise
 
     res.status(200).json({
       success: true,
-      count: approvals.length,
       approvals,
     });
-  } catch (error: any) {
+  } catch (error) {
     console.error('[ApprovalController] Error getting pending approvals:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Internal server error',
+      error: error instanceof Error ? error.message : 'Internal server error',
     });
   }
 }
 
 /**
  * Simulate approval action (for testing/demo)
- * POST /api/approvals/:id/simulate
+ * POST /api/v1/approvals/:id/simulate
  */
 export async function simulateApprovalAction(req: Request, res: Response): Promise<void> {
   try {
@@ -179,7 +185,7 @@ export async function simulateApprovalAction(req: Request, res: Response): Promi
     if (!id) {
       res.status(400).json({
         success: false,
-        error: 'Missing approval ID.',
+        error: 'Missing approval ID',
       });
       return;
     }
@@ -208,37 +214,29 @@ export async function simulateApprovalAction(req: Request, res: Response): Promi
     } else {
       res.status(400).json(result);
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('[ApprovalController] Error simulating approval action:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Internal server error',
+      error: error instanceof Error ? error.message : 'Internal server error',
     });
   }
 }
 
 /**
- * Webhook endpoint for Budibase callbacks
+ * Handle Budibase webhook callback
  * POST /api/webhooks/budibase/approval
  */
 export async function handleBudibaseWebhook(req: Request, res: Response): Promise<void> {
   try {
     const payload = req.body as BudibaseWebhookPayload;
-    const signature = req.headers['x-webhook-signature'] as string | undefined;
+    const signature = req.headers['x-budibase-signature'] as string | undefined;
 
-    // Validate required fields
-    if (!payload.approvalId) {
+    // Validate payload
+    if (!payload.event || !payload.approvalId || !payload.status) {
       res.status(400).json({
         success: false,
-        error: 'Missing approvalId in webhook payload.',
-      });
-      return;
-    }
-
-    if (!payload.eventType) {
-      res.status(400).json({
-        success: false,
-        error: 'Missing eventType in webhook payload.',
+        error: 'Invalid webhook payload',
       });
       return;
     }
@@ -246,28 +244,25 @@ export async function handleBudibaseWebhook(req: Request, res: Response): Promis
     const success = await approvalService.processWebhook(payload, signature);
 
     if (success) {
-      res.status(200).json({
-        success: true,
-        message: 'Webhook processed successfully.',
-      });
+      res.status(200).json({ success: true });
     } else {
-      res.status(400).json({
+      res.status(401).json({
         success: false,
-        error: 'Failed to process webhook.',
+        error: 'Webhook processing failed',
       });
     }
-  } catch (error: any) {
+  } catch (error) {
     console.error('[ApprovalController] Error handling webhook:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Internal server error',
+      error: error instanceof Error ? error.message : 'Internal server error',
     });
   }
 }
 
 /**
  * Health check for approval service
- * GET /api/approvals/health
+ * GET /api/v1/approvals/health
  */
 export async function healthCheck(_req: Request, res: Response): Promise<void> {
   res.status(200).json({

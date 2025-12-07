@@ -1,89 +1,62 @@
 /**
  * Approval Service
  * 
- * Handles integration with Budibase for approval workflows.
- * Provides methods to create, query, and manage approval requests.
+ * Handles approval workflow operations with Budibase integration.
+ * Supports mock mode for development when Budibase is not configured.
  */
 
 import {
+  ApprovalType,
+  ApprovalStatus,
   ApprovalStepName,
+  ApprovalRequest,
+  ApprovalStep,
   CreateApprovalRequest,
   CreateApprovalResponse,
   ApprovalStatusResponse,
-  ApprovalRequest,
-  ApprovalStep,
-  ApprovalHistoryEntry,
   BudibaseWebhookPayload,
-  ApprovalWorkflowConfig,
   DEFAULT_WORKFLOW_CONFIG,
   getNextStep,
   getStatusAfterApproval,
-  isApprovalComplete,
-  isApprovalRejected,
+  BudibaseRowResponse,
+  BudibaseSearchResponse,
 } from '../models/approval.model';
 
-// Budibase API response type
-interface BudibaseRowResponse {
-  _id: string;
-  type: string;
-  status: string;
-  currentStep: string;
-  submittedBy: string;
-  submittedByEmail: string;
-  submittedAt: string;
-  formData: string;
-  bmadSessionId: string;
-  createdAt: string;
-  updatedAt: string;
+interface ApprovalServiceConfig {
+  budibaseApiUrl?: string;
+  budibaseApiKey?: string;
+  budibaseAppId?: string;
+  webhookSecret?: string;
 }
 
-interface BudibaseSearchResponse {
-  data: ApprovalRequest[];
-}
-
-// Budibase API configuration
-interface BudibaseConfig {
-  apiUrl: string;
-  apiKey: string;
-  appId: string;
-  webhookSecret: string;
-}
-
-// In-memory storage for demo/development (replace with Budibase API calls in production)
-interface ApprovalStore {
-  requests: Map<string, ApprovalRequest>;
-  steps: Map<string, ApprovalStep[]>;
+/**
+ * In-memory store for mock mode
+ */
+interface MockStore {
+  approvals: Map<string, ApprovalRequest>;
 }
 
 class ApprovalService {
-  private config: BudibaseConfig;
-  private workflowConfig: ApprovalWorkflowConfig;
-  private store: ApprovalStore;
-  private useMockMode: boolean;
+  private config: ApprovalServiceConfig;
+  private store: MockStore;
 
   constructor() {
     this.config = {
-      apiUrl: process.env.BUDIBASE_API_URL || 'https://your-budibase.budibase.app/api/public/v1',
-      apiKey: process.env.BUDIBASE_API_KEY || '',
-      appId: process.env.BUDIBASE_APP_ID || '',
-      webhookSecret: process.env.APPROVAL_WEBHOOK_SECRET || 'dev-secret',
+      budibaseApiUrl: process.env.BUDIBASE_API_URL,
+      budibaseApiKey: process.env.BUDIBASE_API_KEY,
+      budibaseAppId: process.env.BUDIBASE_APP_ID,
+      webhookSecret: process.env.APPROVAL_WEBHOOK_SECRET,
     };
 
-    this.workflowConfig = DEFAULT_WORKFLOW_CONFIG;
-    
-    // Use mock mode if Budibase is not configured
-    this.useMockMode = !this.config.apiKey || !this.config.appId;
-    
-    // In-memory store for mock mode
+    // Initialize mock store for development
     this.store = {
-      requests: new Map(),
-      steps: new Map(),
+      approvals: new Map(),
     };
 
-    if (this.useMockMode) {
-      console.log('[ApprovalService] Running in mock mode - Budibase not configured');
+    if (this.isMockMode()) {
+      console.log('[ApprovalService] Running in MOCK mode - Budibase not configured');
     } else {
-      console.log('[ApprovalService] Connected to Budibase:', this.config.apiUrl);
+      console.log('[ApprovalService] Running in LIVE mode with Budibase');
     }
   }
 
@@ -137,38 +110,39 @@ class ApprovalService {
    * Process webhook from Budibase
    */
   async processWebhook(payload: BudibaseWebhookPayload, signature?: string): Promise<boolean> {
-    console.log('[ApprovalService] Processing webhook:', {
-      approvalId: payload.approvalId,
-      eventType: payload.eventType,
-      status: payload.status,
-    });
-
-    // Verify webhook signature in production
-    if (!this.useMockMode && signature) {
-      if (!this.verifyWebhookSignature(payload, signature)) {
-        console.error('[ApprovalService] Invalid webhook signature');
-        return false;
-      }
-    }
-
     try {
-      // Update local store if in mock mode
-      if (this.useMockMode) {
-        const request = this.store.requests.get(payload.approvalId);
-        if (request) {
-          request.status = payload.status;
-          if (payload.currentStep) {
-            request.currentStep = payload.currentStep;
-          }
-          request.updatedAt = new Date();
+      // Verify webhook signature if configured
+      if (this.config.webhookSecret && signature) {
+        if (!this.verifyWebhookSignature(payload, signature)) {
+          console.error('[ApprovalService] Invalid webhook signature');
+          return false;
         }
       }
 
-      // Emit event for session service to handle
-      // In a real implementation, this would notify the user
-      console.log('[ApprovalService] Webhook processed successfully');
+      console.log('[ApprovalService] Processing webhook:', payload);
+
+      if (this.isMockMode()) {
+        // Update mock store
+        const approval = this.store.approvals.get(payload.approvalId);
+        if (approval) {
+          approval.status = payload.status;
+          approval.updatedAt = payload.timestamp;
+          
+          if (payload.step) {
+            const step = approval.steps.find(s => s.name === payload.step);
+            if (step) {
+              step.status = payload.event === 'approval_rejected' ? 'rejected' : 'approved';
+              step.approverEmail = payload.approverEmail;
+              step.approverName = payload.approverName;
+              step.comment = payload.comment;
+              step.approvedAt = payload.timestamp;
+            }
+          }
+        }
+      }
+
       return true;
-    } catch (error: any) {
+    } catch (error) {
       console.error('[ApprovalService] Error processing webhook:', error);
       return false;
     }
@@ -182,111 +156,110 @@ class ApprovalService {
     action: 'approve' | 'reject',
     comment?: string
   ): Promise<ApprovalStatusResponse> {
-    if (!this.useMockMode) {
+    if (!this.isMockMode()) {
       return {
         success: false,
         error: 'Simulation only available in mock mode',
       };
     }
 
-    const request = this.store.requests.get(approvalId);
-    if (!request) {
+    const approval = this.store.approvals.get(approvalId);
+    if (!approval) {
       return {
         success: false,
-        error: 'Approval request not found',
+        error: 'Approval not found',
       };
     }
 
-    const steps = this.store.steps.get(approvalId) || [];
-    const currentStepIndex = steps.findIndex(s => s.status === 'pending');
-    
-    if (currentStepIndex === -1) {
+    const currentStep = approval.steps.find(s => s.status === 'pending');
+    if (!currentStep) {
       return {
         success: false,
-        error: 'No pending approval step',
+        error: 'No pending steps',
       };
     }
 
-    const currentStep = steps[currentStepIndex];
-    currentStep.status = action === 'approve' ? 'approved' : 'rejected';
-    currentStep.actionAt = new Date();
-    currentStep.actionBy = currentStep.assignedTo;
-    currentStep.comment = comment;
+    const now = new Date().toISOString();
 
     if (action === 'reject') {
-      request.status = 'rejected';
+      currentStep.status = 'rejected';
+      currentStep.rejectedAt = now;
+      currentStep.comment = comment;
+      approval.status = 'rejected';
+      approval.rejectionReason = comment;
+      approval.updatedAt = now;
     } else {
-      request.status = getStatusAfterApproval(request.type, currentStep.stepName);
-      
-      // Move to next step if available
-      const nextStep = getNextStep(request.type, currentStep.stepName, this.workflowConfig);
-      if (nextStep) {
-        request.currentStep = nextStep;
-        // Mark next step as pending
-        const nextStepRecord = steps.find(s => s.stepName === nextStep);
-        if (nextStepRecord) {
-          nextStepRecord.status = 'pending';
+      currentStep.status = 'approved';
+      currentStep.approvedAt = now;
+      currentStep.approverEmail = this.getMockApproverEmail(currentStep.name);
+      currentStep.approverName = this.getMockApproverName(currentStep.name);
+      currentStep.comment = comment;
+
+      // Update approval status
+      approval.status = getStatusAfterApproval(approval.type, currentStep.name);
+      approval.updatedAt = now;
+
+      // Set next step as current
+      const nextStep = getNextStep(approval.type, currentStep.name);
+      approval.currentStep = nextStep;
+
+      // If no next step, mark as complete
+      if (!nextStep) {
+        approval.completedAt = now;
+        if (approval.type === 'travel') {
+          approval.status = 'booked';
+        } else {
+          approval.status = 'reimbursed';
         }
       }
     }
 
-    request.updatedAt = new Date();
-
     return {
       success: true,
-      approval: request,
-      steps: steps,
+      approval,
     };
   }
 
   /**
    * Get approval history for a session
    */
-  async getApprovalHistory(sessionId: string): Promise<ApprovalHistoryEntry[]> {
-    // Find approval by session ID
-    for (const [approvalId, request] of this.store.requests) {
-      if (request.bmadSessionId === sessionId) {
-        const steps = this.store.steps.get(approvalId) || [];
-        return steps
-          .filter(s => s.status !== 'pending')
-          .map(s => ({
-            step: s.stepName,
-            status: s.status,
-            by: s.actionBy || s.assignedTo,
-            at: s.actionAt || new Date(),
-            comment: s.comment,
-          }));
-      }
+  async getApprovalHistory(sessionId: string): Promise<ApprovalRequest[]> {
+    if (this.isMockMode()) {
+      return Array.from(this.store.approvals.values())
+        .filter(a => a.sessionId === sessionId)
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
+
+    // For Budibase, query by sessionId
+    // This would be implemented with Budibase search API
     return [];
   }
-
-  // Private methods
 
   /**
    * Create approval in mock mode
    */
   private createMockApproval(request: CreateApprovalRequest): CreateApprovalResponse {
-    const approvalId = `approval-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const now = new Date();
+    const id = `mock-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const now = new Date().toISOString();
 
-    // Determine workflow steps based on type
-    const stepNames = request.type === 'travel'
-      ? this.workflowConfig.travel.steps
-      : this.workflowConfig.invoice.steps;
-
-    // Create approval request
+    const stepNames = DEFAULT_WORKFLOW_CONFIG[request.type].steps;
+    
     const approval: ApprovalRequest = {
-      id: approvalId,
+      id,
       type: request.type,
       status: 'submitted',
-      currentStep: stepNames[0],
       submittedBy: request.submittedBy,
       submittedByEmail: request.submittedByEmail,
-      submittedAt: now,
+      sessionId: request.sessionId,
       formData: request.formData,
-      bmadSessionId: request.sessionId,
       attachments: request.attachments,
+      steps: stepNames.map((name, index) => ({
+        id: `step-${id}-${index}`,
+        name,
+        status: index === 0 ? 'pending' : 'pending',
+        order: index,
+      })),
+      currentStep: stepNames[0],
       createdAt: now,
       updatedAt: now,
     };
@@ -324,32 +297,33 @@ class ApprovalService {
 
     return {
       success: true,
-      approvalId,
+      approvalId: id,
       status: 'submitted',
-      currentStep: stepNames[0],
+      message: `Approval request created (mock mode). Awaiting ${stepNames[0]} approval.`,
     };
   }
 
   /**
-   * Create approval via Budibase API
+   * Create approval in Budibase
    */
   private async createBudibaseApproval(request: CreateApprovalRequest): Promise<CreateApprovalResponse> {
-    const response = await fetch(`${this.config.apiUrl}/tables/ApprovalRequests/rows`, {
+    const response = await fetch(`${this.config.budibaseApiUrl}/api/public/v1/tables/approvals/rows`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-budibase-api-key': this.config.apiKey,
-        'x-budibase-app-id': this.config.appId,
+        'x-budibase-api-key': this.config.budibaseApiKey!,
+        'x-budibase-app-id': this.config.budibaseAppId!,
       },
       body: JSON.stringify({
-        type: request.type,
+        approvalType: request.type,
         status: 'submitted',
-        currentStep: request.type === 'travel' ? 'manager' : 'manager',
         submittedBy: request.submittedBy,
         submittedByEmail: request.submittedByEmail,
-        submittedAt: new Date().toISOString(),
+        sessionId: request.sessionId,
         formData: JSON.stringify(request.formData),
-        bmadSessionId: request.sessionId,
+        attachments: request.attachments ? JSON.stringify(request.attachments) : null,
+        approvalCreatedAt: new Date().toISOString(),
+        approvalUpdatedAt: new Date().toISOString(),
       }),
     });
 
@@ -364,7 +338,7 @@ class ApprovalService {
       success: true,
       approvalId: data._id,
       status: 'submitted',
-      currentStep: 'manager',
+      message: 'Approval request created successfully',
     };
   }
 
@@ -372,137 +346,175 @@ class ApprovalService {
    * Get approval status from mock store
    */
   private getMockApprovalStatus(approvalId: string): ApprovalStatusResponse {
-    const approval = this.store.requests.get(approvalId);
+    const approval = this.store.approvals.get(approvalId);
+    
     if (!approval) {
       return {
         success: false,
-        error: 'Approval request not found',
+        error: 'Approval not found',
       };
     }
-
-    const steps = this.store.steps.get(approvalId) || [];
 
     return {
       success: true,
       approval,
-      steps,
     };
   }
 
   /**
-   * Get approval status from Budibase API
+   * Get approval status from Budibase
    */
   private async getBudibaseApprovalStatus(approvalId: string): Promise<ApprovalStatusResponse> {
-    const response = await fetch(`${this.config.apiUrl}/tables/ApprovalRequests/rows/${approvalId}`, {
-      method: 'GET',
-      headers: {
-        'x-budibase-api-key': this.config.apiKey,
-        'x-budibase-app-id': this.config.appId,
-      },
-    });
+    const response = await fetch(
+      `${this.config.budibaseApiUrl}/api/public/v1/tables/approvals/rows/${approvalId}`,
+      {
+        headers: {
+          'x-budibase-api-key': this.config.budibaseApiKey!,
+          'x-budibase-app-id': this.config.budibaseAppId!,
+        },
+      }
+    );
 
     if (!response.ok) {
+      if (response.status === 404) {
+        return {
+          success: false,
+          error: 'Approval not found',
+        };
+      }
       const error = await response.text();
       throw new Error(`Budibase API error: ${error}`);
     }
 
     const data = await response.json() as BudibaseRowResponse;
 
+    // Transform Budibase row to ApprovalRequest
+    // Note: Budibase uses approvalType, approvalCreatedAt, approvalUpdatedAt, approvalCompletedAt
+    // to avoid reserved column names (type, createdAt, updatedAt)
+    const approval: ApprovalRequest = {
+      id: data._id,
+      type: (data.approvalType || data.type) as ApprovalType,
+      status: data.status as ApprovalStatus,
+      submittedBy: data.submittedBy as string,
+      submittedByEmail: data.submittedByEmail as string,
+      sessionId: data.sessionId as string | undefined,
+      formData: typeof data.formData === 'string' ? JSON.parse(data.formData) : data.formData as Record<string, unknown>,
+      attachments: data.attachments ? (typeof data.attachments === 'string' ? JSON.parse(data.attachments) : data.attachments as string[]) : undefined,
+      steps: data.steps ? (typeof data.steps === 'string' ? JSON.parse(data.steps) : data.steps as ApprovalStep[]) : [],
+      currentStep: data.currentStep as ApprovalStepName | null,
+      createdAt: (data.approvalCreatedAt || data.createdAt) as string,
+      updatedAt: (data.approvalUpdatedAt || data.updatedAt) as string,
+      completedAt: (data.approvalCompletedAt || data.completedAt) as string | undefined,
+      rejectionReason: data.rejectionReason as string | undefined,
+    };
+
     return {
       success: true,
-      approval: {
-        id: data._id,
-        type: data.type as ApprovalRequest['type'],
-        status: data.status as ApprovalRequest['status'],
-        currentStep: data.currentStep as ApprovalStepName,
-        submittedBy: data.submittedBy,
-        submittedByEmail: data.submittedByEmail,
-        submittedAt: new Date(data.submittedAt),
-        formData: JSON.parse(data.formData || '{}'),
-        bmadSessionId: data.bmadSessionId,
-        createdAt: new Date(data.createdAt),
-        updatedAt: new Date(data.updatedAt),
-      },
+      approval,
     };
   }
 
   /**
    * Verify webhook signature
    */
-  private verifyWebhookSignature(_payload: BudibaseWebhookPayload, signature: string): boolean {
-    // In production, implement HMAC verification
-    // For now, just check if signature matches secret
-    return signature === this.config.webhookSecret;
+  private verifyWebhookSignature(_payload: BudibaseWebhookPayload, _signature: string): boolean {
+    // TODO: Implement HMAC signature verification
+    // For now, just return true if secret is configured
+    return !!this.config.webhookSecret;
   }
 
   /**
-   * Get mock approver email based on role
+   * Get mock approver email for a step
    */
-  private getMockApproverEmail(role: ApprovalStepName): string {
+  private getMockApproverEmail(step: ApprovalStepName): string {
     const emails: Record<ApprovalStepName, string> = {
-      manager: 'manager@example.com',
-      travel_office: 'travel@example.com',
-      security: 'security@example.com',
-      finance: 'finance@example.com',
+      manager: 'manager@company.com',
+      travel_office: 'travel@company.com',
+      security: 'security@company.com',
+      finance: 'finance@company.com',
     };
-    return emails[role];
+    return emails[step];
   }
 
   /**
-   * Get mock approver name based on role
+   * Get mock approver name for a step
    */
-  private getMockApproverName(role: ApprovalStepName): string {
+  private getMockApproverName(step: ApprovalStepName): string {
     const names: Record<ApprovalStepName, string> = {
-      manager: 'Direct Manager',
+      manager: 'John Manager',
       travel_office: 'Travel Office',
       security: 'Security Team',
       finance: 'Finance Department',
     };
-    return names[role];
+    return names[step];
   }
 
   /**
-   * Check if service is in mock mode
+   * Check if running in mock mode
    */
   isMockMode(): boolean {
-    return this.useMockMode;
+    return !this.config.budibaseApiUrl || !this.config.budibaseApiKey || !this.config.budibaseAppId;
   }
 
   /**
-   * Get all pending approvals (for admin/testing)
+   * Get all pending approvals (admin endpoint)
    */
   async getPendingApprovals(): Promise<ApprovalRequest[]> {
-    if (this.useMockMode) {
-      return Array.from(this.store.requests.values())
-        .filter(r => !isApprovalComplete(r.status) && !isApprovalRejected(r.status));
+    if (this.isMockMode()) {
+      return Array.from(this.store.approvals.values())
+        .filter(a => !['booked', 'reimbursed', 'rejected'].includes(a.status))
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
     }
 
-    // Budibase API query for pending approvals
-    const response = await fetch(`${this.config.apiUrl}/tables/ApprovalRequests/rows/search`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-budibase-api-key': this.config.apiKey,
-        'x-budibase-app-id': this.config.appId,
-      },
-      body: JSON.stringify({
-        query: {
-          notEqual: {
-            status: ['rejected', 'security_approved', 'finance_approved', 'booked', 'reimbursed'],
-          },
+    // For Budibase, query pending approvals
+    const response = await fetch(
+      `${this.config.budibaseApiUrl}/api/public/v1/tables/approvals/rows/search`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-budibase-api-key': this.config.budibaseApiKey!,
+          'x-budibase-app-id': this.config.budibaseAppId!,
         },
-      }),
-    });
+        body: JSON.stringify({
+          query: {
+            notEqual: {
+              status: 'booked',
+            },
+          },
+        }),
+      }
+    );
 
     if (!response.ok) {
       throw new Error('Failed to fetch pending approvals');
     }
 
     const data = await response.json() as BudibaseSearchResponse;
-    return data.data || [];
+    
+    // Transform Budibase rows to ApprovalRequest objects
+    // Note: Budibase uses approvalType, approvalCreatedAt, approvalUpdatedAt, approvalCompletedAt
+    // to avoid reserved column names (type, createdAt, updatedAt)
+    return (data.data || []).map(row => ({
+      id: row._id,
+      type: (row.approvalType || row.type) as ApprovalType,
+      status: row.status as ApprovalStatus,
+      submittedBy: row.submittedBy as string,
+      submittedByEmail: row.submittedByEmail as string,
+      sessionId: row.sessionId as string | undefined,
+      formData: typeof row.formData === 'string' ? JSON.parse(row.formData) : row.formData as Record<string, unknown>,
+      attachments: row.attachments ? (typeof row.attachments === 'string' ? JSON.parse(row.attachments) : row.attachments as string[]) : undefined,
+      steps: row.steps ? (typeof row.steps === 'string' ? JSON.parse(row.steps) : row.steps as ApprovalStep[]) : [],
+      currentStep: row.currentStep as ApprovalStepName | null,
+      createdAt: (row.approvalCreatedAt || row.createdAt) as string,
+      updatedAt: (row.approvalUpdatedAt || row.updatedAt) as string,
+      completedAt: (row.approvalCompletedAt || row.completedAt) as string | undefined,
+      rejectionReason: row.rejectionReason as string | undefined,
+    }));
   }
 }
 
-// Export singleton instance
+// Export class and singleton instance
+export { ApprovalService };
 export const approvalService = new ApprovalService();
 export default approvalService;

@@ -1,0 +1,3 @@
+approvalType,status,submittedBy,submittedByEmail,sessionId,formData,attachments,steps,currentStep,approvalCreatedAt,approvalUpdatedAt,approvalCompletedAt,rejectionReason
+travel,submitted,David Guetta,david@example.com,session-123,"{}","[]","[]",manager,2025-12-06T12:00:00.000Z,2025-12-06T12:00:00.000Z,,
+invoice,submitted,John Doe,john@example.com,session-456,"{}","[]","[]",manager,2025-12-06T13:00:00.000Z,2025-12-06T13:00:00.000Z,,
