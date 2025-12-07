@@ -226,9 +226,31 @@ export function isApprovalRejected(status: ApprovalStatus): boolean {
 
 /**
  * Budibase API response types
+ * Note: Budibase uses approvalType, approvalCreatedAt, approvalUpdatedAt, approvalCompletedAt
+ * to avoid reserved column names (type, createdAt, updatedAt)
  */
 export interface BudibaseRowResponse {
   _id: string;
+  // New column names (avoiding Budibase reserved names)
+  approvalType?: string;
+  approvalCreatedAt?: string;
+  approvalUpdatedAt?: string;
+  approvalCompletedAt?: string;
+  // Legacy column names (for backwards compatibility)
+  type?: string;
+  createdAt?: string;
+  updatedAt?: string;
+  completedAt?: string;
+  // Standard columns
+  status?: string;
+  submittedBy?: string;
+  submittedByEmail?: string;
+  sessionId?: string;
+  formData?: string | Record<string, unknown>;
+  attachments?: string | string[];
+  steps?: string | ApprovalStep[];
+  currentStep?: string;
+  rejectionReason?: string;
   [key: string]: unknown;
 }
 
