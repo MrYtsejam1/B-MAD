@@ -20,6 +20,7 @@ export interface InvoiceData {
   vendor?: FieldData;
   currency?: FieldData;
   category?: FieldData;
+  invoiceNumber?: FieldData;
 }
 
 export interface FieldData {

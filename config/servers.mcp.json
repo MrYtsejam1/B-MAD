@@ -2,8 +2,8 @@
   "servers": [
     {
       "id": "invoice",
-      "name": "Invoice Submission",
-      "description": "Submit and track expense invoices",
+      "name": "Invoice/Bill Refund",
+      "description": "Submit expense invoices and bill refunds for reimbursement",
       "mode": "mock",
       "baseUrl": "https://api.company.com/invoices",
       "mockBaseUrl": "/mock/invoices",
@@ -29,7 +29,101 @@
       ],
       "workflow": {
         "steps": ["DRAFT", "SUBMITTED", "MANAGER_APPROVED", "FINANCE_APPROVED", "REIMBURSED"],
-        "requiredFields": ["date", "amount", "currency", "purpose", "category"]
+        "requiredFields": ["workerName", "invoiceDate", "amount", "expenseType"],
+        "prompts": {
+          "he": ["חשבונית", "החזר", "קבלה", "הוצאה", "החזר כספי"],
+          "en": ["invoice", "receipt", "refund", "expense", "reimbursement", "bill"]
+        }
+      },
+      "formSchema": {
+        "fields": [
+          {
+            "name": "workerName",
+            "label": "Worker Name",
+            "labelHe": "שם העובד",
+            "type": "text",
+            "required": true,
+            "placeholder": "Enter worker name",
+            "source": "user_input"
+          },
+          {
+            "name": "invoiceDate",
+            "label": "Invoice Date",
+            "labelHe": "תאריך החשבונית",
+            "type": "date",
+            "required": true,
+            "placeholder": "Select invoice date",
+            "source": "user_input"
+          },
+          {
+            "name": "amount",
+            "label": "Amount",
+            "labelHe": "סכום",
+            "type": "number",
+            "required": true,
+            "placeholder": "Enter invoice amount",
+            "source": "user_input"
+          },
+          {
+            "name": "currency",
+            "label": "Currency",
+            "labelHe": "מטבע",
+            "type": "select",
+            "required": false,
+            "options": [
+              { "value": "ILS", "label": "ILS (₪)", "labelHe": "שקל" },
+              { "value": "USD", "label": "USD ($)", "labelHe": "דולר" },
+              { "value": "EUR", "label": "EUR (€)", "labelHe": "יורו" }
+            ],
+            "placeholder": "Select currency",
+            "source": "user_input"
+          },
+          {
+            "name": "vendor",
+            "label": "Vendor/Business Name",
+            "labelHe": "שם העסק/ספק",
+            "type": "text",
+            "required": false,
+            "placeholder": "Enter vendor or business name",
+            "source": "user_input"
+          },
+          {
+            "name": "invoiceNumber",
+            "label": "Invoice/Receipt Number",
+            "labelHe": "מספר חשבונית/קבלה",
+            "type": "text",
+            "required": false,
+            "placeholder": "Enter invoice or receipt number",
+            "source": "ocr"
+          },
+          {
+            "name": "invoiceDetails",
+            "label": "Invoice Details/Purpose",
+            "labelHe": "פרטי החשבונית/מטרה",
+            "type": "textarea",
+            "required": false,
+            "placeholder": "Enter additional invoice details or purpose",
+            "source": "user_input"
+          },
+          {
+            "name": "expenseType",
+            "label": "Expense Type",
+            "labelHe": "סוג ההוצאה",
+            "type": "select",
+            "required": true,
+              "options": [
+                { "value": "parking", "label": "Parking", "labelHe": "חניה" },
+                { "value": "food", "label": "Food", "labelHe": "אוכל" },
+                { "value": "hotel", "label": "Hotel", "labelHe": "מלון" },
+                { "value": "flight", "label": "Flight", "labelHe": "טיסה" },
+                { "value": "conference", "label": "Conference", "labelHe": "כנס" },
+                { "value": "software", "label": "Software/IT Services", "labelHe": "שירותי מחשוב/תוכנה" },
+                { "value": "other", "label": "Other", "labelHe": "אחר" }
+              ],
+            "placeholder": "Select expense type",
+            "source": "user_input"
+          }
+        ]
       }
     },
     {
@@ -54,7 +148,106 @@
       ],
       "workflow": {
         "steps": ["DRAFT", "SUBMITTED", "APPROVED", "BOOKED"],
-        "requiredFields": ["destination", "startDate", "endDate", "travelers"]
+        "requiredFields": ["workerName", "travelersNames", "departureCity", "destinationCity", "departureDate", "returnDate", "passport", "departureFlightNumber", "returnFlightNumber", "hotelDetails"],
+        "prompts": {
+          "he": ["טיסה", "טיול פרטי", "נסיעת עבודה", "חופשה", "נסיעה", "טיול"],
+          "en": ["flight", "trip", "travel", "vacation", "business trip", "journey"]
+        }
+      },
+      "formSchema": {
+        "fields": [
+          {
+            "name": "workerName",
+            "label": "Worker Name",
+            "labelHe": "שם העובד",
+            "type": "text",
+            "required": true,
+            "placeholder": "Enter worker name",
+            "source": "user_input"
+          },
+          {
+            "name": "travelersNames",
+            "label": "Travelers Names (Co-workers)",
+            "labelHe": "שמות הנוסעים (עמיתים)",
+            "type": "textarea",
+            "required": false,
+            "placeholder": "Enter names of co-workers traveling with you (one per line)",
+            "source": "user_input",
+            "multiple": true
+          },
+          {
+            "name": "departureCity",
+            "label": "Departure City",
+            "labelHe": "עיר המוצא",
+            "type": "text",
+            "required": true,
+            "placeholder": "Enter departure city",
+            "source": "user_input"
+          },
+          {
+            "name": "destinationCity",
+            "label": "Destination City",
+            "labelHe": "עיר היעד",
+            "type": "text",
+            "required": true,
+            "placeholder": "Enter destination city",
+            "source": "user_input"
+          },
+          {
+            "name": "departureDate",
+            "label": "Departure Date",
+            "labelHe": "תאריך יציאה",
+            "type": "date",
+            "required": true,
+            "placeholder": "Select departure date",
+            "source": "user_input"
+          },
+          {
+            "name": "returnDate",
+            "label": "Return Date",
+            "labelHe": "תאריך חזרה",
+            "type": "date",
+            "required": true,
+            "placeholder": "Select return date",
+            "source": "user_input"
+          },
+          {
+            "name": "passport",
+            "label": "Passport Number",
+            "labelHe": "מספר דרכון",
+            "type": "text",
+            "required": true,
+            "placeholder": "Passport number (auto-filled from internal API)",
+            "source": "internal_api"
+          },
+          {
+            "name": "departureFlightNumber",
+            "label": "Departure Flight Number",
+            "labelHe": "מספר טיסת יציאה",
+            "type": "text",
+            "required": true,
+            "placeholder": "e.g., LY556",
+            "source": "user_input"
+          },
+          {
+            "name": "returnFlightNumber",
+            "label": "Return Flight Number",
+            "labelHe": "מספר טיסת חזרה",
+            "type": "text",
+            "required": true,
+            "placeholder": "e.g., LY557",
+            "source": "user_input"
+          },
+          {
+            "name": "hotelDetails",
+            "label": "Hotel Name and Address",
+            "labelHe": "שם וכתובת המלון",
+            "type": "textarea",
+            "required": false,
+            "placeholder": "Enter hotel name and address (or auto-filled from internal API)",
+            "source": "internal_api_or_manual"
+          }
+        ]
       }
     }
   ]

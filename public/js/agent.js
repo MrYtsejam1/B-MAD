@@ -2,14 +2,134 @@
 class AgentClient {
     constructor() {
         this.currentStream = null;
-        this.sessionId = this.generateSessionId();
+        this.sessionId = null;
+        this.conversationMode = 'session'; // 'session' for new conversational flow, 'legacy' for old flow
     }
 
-    generateSessionId() {
-        return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+    async startSession(userInput, model, context = {}) {
+        if (this.currentStream) {
+            console.log('Aborting previous stream');
+            this.currentStream.abort();
+        }
+
+        this.currentStream = new AbortController();
+        this.sessionId = null;
+        
+        console.log('🤖 CHAT MODE: Starting session at /api/v1/session/start');
+        console.log('Selected model:', model);
+
+        try {
+            const response = await fetch('/api/v1/session/start', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer demo_token'
+                },
+                body: JSON.stringify({
+                    userInput,
+                    mode: 'chat',
+                    model: model,
+                    scenario: context.mcpServer || 'auto'
+                }),
+                signal: this.currentStream.signal
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            await this.processStreamResponse(response);
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log('Stream aborted');
+            } else {
+                console.error('Session start error:', error);
+                this.onEvent('error', { message: error.message });
+            }
+        } finally {
+            this.currentStream = null;
+        }
+    }
+
+    async continueSession(answer) {
+        if (!this.sessionId) {
+            console.error('No active session to continue');
+            this.onEvent('error', { message: 'No active session' });
+            return;
+        }
+
+        if (this.currentStream) {
+            this.currentStream.abort();
+        }
+
+        this.currentStream = new AbortController();
+        
+        console.log('🤖 CHAT MODE: Continuing session at /api/v1/session/message');
+        console.log('Session ID:', this.sessionId);
+        console.log('Answer:', answer);
+
+        try {
+            const response = await fetch('/api/v1/session/message', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': 'Bearer demo_token'
+                },
+                body: JSON.stringify({
+                    sessionId: this.sessionId,
+                    answer
+                }),
+                signal: this.currentStream.signal
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            }
+
+            await this.processStreamResponse(response);
+        } catch (error) {
+            if (error.name === 'AbortError') {
+                console.log('Stream aborted');
+            } else {
+                console.error('Session continue error:', error);
+                this.onEvent('error', { message: error.message });
+            }
+        } finally {
+            this.currentStream = null;
+        }
+    }
+
+    async processStreamResponse(response) {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            
+            if (done) {
+                console.log('Stream complete');
+                break;
+            }
+
+            buffer += decoder.decode(value, { stream: true });
+            
+            const frames = buffer.split('\n\n');
+            buffer = frames.pop() || '';
+
+            for (const frame of frames) {
+                if (frame.trim()) {
+                    this.processFrame(frame);
+                }
+            }
+        }
     }
 
     async startStream(userInput, model, context = {}) {
+        if (this.conversationMode === 'session') {
+            return this.startSession(userInput, model, context);
+        }
+
         if (this.currentStream) {
             console.log('Aborting previous stream');
             this.currentStream.abort();
@@ -17,7 +137,7 @@ class AgentClient {
 
         this.currentStream = new AbortController();
         
-        console.log('🤖 ADVANCED MODE: Starting SSE stream to /api/v1/agent/stream');
+        console.log('🤖 LEGACY MODE: Starting SSE stream to /api/v1/agent/stream');
         console.log('Selected model:', model);
         console.log('Context:', context);
 
@@ -30,7 +150,7 @@ class AgentClient {
                 },
                 body: JSON.stringify({
                     userInput,
-                    sessionId: this.sessionId,
+                    sessionId: 'legacy_' + Date.now(),
                     context: {
                         ...context,
                         model
@@ -43,29 +163,7 @@ class AgentClient {
                 throw new Error(`HTTP ${response.status}: ${response.statusText}`);
             }
 
-            const reader = response.body.getReader();
-            const decoder = new TextDecoder();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                
-                if (done) {
-                    console.log('Stream complete');
-                    break;
-                }
-
-                buffer += decoder.decode(value, { stream: true });
-                
-                const frames = buffer.split('\n\n');
-                buffer = frames.pop() || ''; // Keep incomplete frame in buffer
-
-                for (const frame of frames) {
-                    if (frame.trim()) {
-                        this.processFrame(frame);
-                    }
-                }
-            }
+            await this.processStreamResponse(response);
         } catch (error) {
             if (error.name === 'AbortError') {
                 console.log('Stream aborted');
@@ -157,21 +255,54 @@ class AgentUI {
                 this.addLogEntry('agent', '⚙️ ' + (data.message || 'Generating form...'));
                 break;
 
+            case 'session_started':
+                if (data.sessionId) {
+                    this.client.sessionId = data.sessionId;
+                    console.log('Session started:', data.sessionId);
+                }
+                break;
+
             case 'question':
-                this.handleQuestions(data.questions);
+                if (data.question) {
+                    this.handleSingleQuestion(data);
+                } else if (data.questions) {
+                    this.handleQuestions(data.questions);
+                }
+                break;
+
+            case 'file_upload_request':
+                this.handleFileUploadRequest(data);
                 break;
 
             case 'complete':
                 this.addLogEntry('agent', '✅ Complete!');
+                if (data) {
+                    if (data.mode === 'web_component' && data.component) {
+                        this.displayWebComponent(data.component);
+                    } else if (data.component) {
+                        this.displayWebComponent(data.component);
+                    } else if (data.schema) {
+                        this.displayForm(data.schema);
+                    } else if (data.formSchema) {
+                        this.displayForm(data.formSchema);
+                    }
+                }
                 break;
 
             case 'result':
                 if (data.mode === 'web_component' && data.component) {
                     this.displayWebComponent(data.component);
+                } else if (data.component) {
+                    this.displayWebComponent(data.component);
                 } else if (data.schema) {
                     this.displayForm(data.schema);
                 } else if (data.formSchema) {
                     this.displayForm(data.formSchema);
+                } else if (data.form) {
+                    this.displayForm(data.form);
+                } else if (data.action === 'generate') {
+                    this.addLogEntry('agent', '✅ Form data collected. Ready to generate form.');
+                    this.addLogEntry('system', 'Extracted: ' + JSON.stringify(data.extractedData || {}, null, 2));
                 } else {
                     this.addLogEntry('agent', '✅ Result: ' + JSON.stringify(data, null, 2));
                 }
@@ -198,6 +329,153 @@ class AgentUI {
         
         streamLog.appendChild(entry);
         streamLog.scrollTop = streamLog.scrollHeight;
+    }
+
+    handleSingleQuestion(data) {
+        const { question, questionNumber, maxQuestions } = data;
+        
+        const progressText = maxQuestions ? ` (${questionNumber}/${maxQuestions})` : '';
+        this.addLogEntry('agent', `❓${progressText} ${question}`);
+
+        const streamLog = document.getElementById('agentStreamLog');
+        const questionContainer = document.createElement('div');
+        questionContainer.className = 'chatbot-input-container';
+        questionContainer.innerHTML = `
+            <div class="chatbot-input-wrapper">
+                <input type="text" id="chatAnswer" class="chatbot-input" placeholder="Type your message..." autofocus>
+                <button class="chatbot-send-btn" id="sendAnswer" title="Send message">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="22" y1="2" x2="11" y2="13"></line>
+                        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                    </svg>
+                </button>
+            </div>
+        `;
+
+        streamLog.appendChild(questionContainer);
+        streamLog.scrollTop = streamLog.scrollHeight;
+
+        const sendAnswer = () => {
+            const input = document.getElementById('chatAnswer');
+            const answer = input?.value?.trim();
+            
+            if (!answer) {
+                return;
+            }
+
+            questionContainer.remove();
+            this.addLogEntry('user', answer);
+            this.client.continueSession(answer);
+        };
+
+        document.getElementById('sendAnswer').addEventListener('click', sendAnswer);
+        document.getElementById('chatAnswer').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                sendAnswer();
+            }
+        });
+
+        document.getElementById('chatAnswer')?.focus();
+    }
+
+    handleFileUploadRequest(data) {
+        const { message, accept, endpoint, sessionId } = data;
+        
+        this.addLogEntry('agent', `📎 ${message || 'Please upload your invoice/receipt'}`);
+
+        const streamLog = document.getElementById('agentStreamLog');
+        const uploadContainer = document.createElement('div');
+        uploadContainer.className = 'file-upload-request-container';
+        uploadContainer.innerHTML = `
+            <div class="file-upload-request">
+                <div class="file-upload-dropzone" id="fileDropzone">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <p>Drag & drop your invoice here or</p>
+                    <label class="file-upload-btn">
+                        <input type="file" id="invoiceFileInput" accept="${accept || 'image/*,application/pdf'}" style="display: none;">
+                        Browse Files
+                    </label>
+                </div>
+                <div id="fileUploadStatus" class="file-upload-status"></div>
+                <button class="chatbot-send-btn skip-upload-btn" id="skipUpload" title="Skip and continue without file">
+                    Skip
+                </button>
+            </div>
+        `;
+
+        streamLog.appendChild(uploadContainer);
+        streamLog.scrollTop = streamLog.scrollHeight;
+
+        const fileInput = document.getElementById('invoiceFileInput');
+        const dropzone = document.getElementById('fileDropzone');
+        const statusDiv = document.getElementById('fileUploadStatus');
+
+        const processFile = async (file) => {
+            if (!file) return;
+
+            statusDiv.innerHTML = '<span class="ocr-processing">Processing invoice with OCR...</span>';
+
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+
+                const response = await fetch(endpoint || '/api/v1/ocr/invoice', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const result = await response.json();
+
+                if (result.success && result.enrichedFields) {
+                    statusDiv.innerHTML = '<span class="ocr-success">Invoice processed successfully!</span>';
+                    
+                    // Store enriched fields in session
+                    this.addLogEntry('system', 'Extracted from invoice: ' + JSON.stringify(result.enrichedFields, null, 2));
+                    
+                    // Mark OCR as processed and continue session with enriched data
+                    uploadContainer.remove();
+                    this.client.continueSession('OCR_PROCESSED:' + JSON.stringify(result.enrichedFields));
+                } else {
+                    statusDiv.innerHTML = `<span class="ocr-error">OCR failed: ${result.error || 'Unknown error'}</span>`;
+                }
+            } catch (error) {
+                console.error('File upload error:', error);
+                statusDiv.innerHTML = `<span class="ocr-error">Upload error: ${error.message}</span>`;
+            }
+        };
+
+        fileInput.addEventListener('change', (e) => {
+            processFile(e.target.files[0]);
+        });
+
+        // Drag and drop handlers
+        dropzone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropzone.classList.add('dragover');
+        });
+
+        dropzone.addEventListener('dragleave', () => {
+            dropzone.classList.remove('dragover');
+        });
+
+        dropzone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropzone.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            processFile(file);
+        });
+
+        // Skip button - continue without file
+        document.getElementById('skipUpload').addEventListener('click', () => {
+            uploadContainer.remove();
+            this.addLogEntry('user', 'Skipped file upload');
+            this.client.continueSession('SKIP_FILE_UPLOAD');
+        });
     }
 
     handleQuestions(questions) {

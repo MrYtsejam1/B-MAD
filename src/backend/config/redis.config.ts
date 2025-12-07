@@ -42,7 +42,18 @@ function parseRedisUrl(url: string): { host: string; port: number; password?: st
 }
 
 const redisUrl = process.env.REDIS_URL;
+const redisHost = process.env.REDIS_HOST;
 const parsedUrl = redisUrl ? parseRedisUrl(redisUrl) : null;
+
+// Debug logging to help diagnose connection issues
+console.log('[Redis Config] Environment variables:', {
+  REDIS_URL_SET: !!redisUrl,
+  REDIS_URL_VALUE: redisUrl ? `${redisUrl.substring(0, 20)}...` : 'not set',
+  REDIS_HOST_SET: !!redisHost,
+  REDIS_HOST_VALUE: redisHost || 'not set',
+  PARSED_HOST: parsedUrl?.host || 'not parsed',
+  PARSED_PORT: parsedUrl?.port || 'not parsed',
+});
 
 export const redisConfig: RedisConfig = {
   host: parsedUrl?.host || process.env.REDIS_HOST || 'localhost',
