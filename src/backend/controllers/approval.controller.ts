@@ -1,7 +1,7 @@
 /**
  * Approval Controller
  * 
- * HTTP endpoint handlers for approval workflow operations.
+ * Handles HTTP endpoints for approval workflow operations.
  */
 
 import { Request, Response } from 'express';
@@ -25,7 +25,7 @@ export async function createApproval(req: Request, res: Response): Promise<void>
       sessionId,
       formData,
       attachments,
-    } = req.body;
+    } = req.body as CreateApprovalRequest;
 
     // Validate required fields
     if (!type || !['travel', 'invoice'].includes(type)) {
@@ -36,6 +36,18 @@ export async function createApproval(req: Request, res: Response): Promise<void>
       return;
     }
 
+    if (!submittedBy) {
+      res.status(400).json({
+        success: false,
+        error: 'Missing submittedBy field.',
+      });
+      return;
+    }
+
+    if (!sessionId) {
+      res.status(400).json({
+        success: false,
+        error: 'Missing sessionId field.',
     if (!submittedBy || !submittedByEmail) {
       res.status(400).json({
         success: false,
@@ -182,6 +194,15 @@ export async function simulateApprovalAction(req: Request, res: Response): Promi
       res.status(400).json({
         success: false,
         error: 'Invalid action. Must be "approve" or "reject".',
+      });
+      return;
+    }
+
+    // Check if service is in mock mode
+    if (!approvalService.isMockMode()) {
+      res.status(403).json({
+        success: false,
+        error: 'Simulation only available in mock mode.',
       });
       return;
     }

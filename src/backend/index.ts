@@ -9,6 +9,8 @@ import componentRoutes from './routes/component.routes';
 import approvalRoutes from './routes/approval.routes';
 import webhookRoutes from './routes/webhook.routes';
 import ocrRoutes from './routes/ocr.routes';
+import approvalRoutes from './routes/approval.routes';
+import webhookRoutes from './routes/webhook.routes';
 
 dotenv.config();
 
@@ -60,6 +62,8 @@ app.use('/api/v1', componentRoutes);
 app.use('/api/v1/approvals', approvalRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/v1/ocr', ocrRoutes);
+app.use('/api/v1/approvals', approvalRoutes);
+app.use('/api/webhooks', webhookRoutes);
 
 app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
   console.error(err.stack);

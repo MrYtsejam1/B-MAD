@@ -71,29 +71,56 @@ export interface ApprovalRequest {
   id: string;
   type: ApprovalType;
   status: ApprovalStatus;
+  currentStep: ApprovalStepName;
   submittedBy: string;
   submittedByEmail: string;
-  sessionId?: string;
-  formData: Record<string, unknown>;
-  attachments?: string[];
-  steps: ApprovalStep[];
-  currentStep: ApprovalStepName | null;
-  createdAt: string;
-  updatedAt: string;
-  completedAt?: string;
-  rejectionReason?: string;
+  submittedAt: Date;
+  formData: Record<string, any>;
+  bmadSessionId: string;
+  attachments?: ApprovalAttachment[];
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 /**
- * Request to create a new approval
+ * Approval step record
  */
-export interface CreateApprovalRequest {
-  type: ApprovalType;
-  submittedBy: string;
-  submittedByEmail: string;
-  sessionId?: string;
-  formData: Record<string, unknown>;
-  attachments?: string[];
+export interface ApprovalStep {
+  id: string;
+  requestId: string;
+  stepName: ApprovalStepName;
+  stepOrder: number;
+  assignedTo: string;
+  assignedToName?: string;
+  status: StepStatus;
+  comment?: string;
+  actionAt?: Date;
+  actionBy?: string;
+}
+
+/**
+ * Approval history entry for session tracking
+ */
+export interface ApprovalHistoryEntry {
+  step: ApprovalStepName;
+  status: StepStatus;
+  by: string;
+  at: Date;
+  comment?: string;
+}
+
+/**
+ * Webhook payload from Budibase
+ */
+export interface BudibaseWebhookPayload {
+  approvalId: string;
+  status: ApprovalStatus;
+  currentStep?: ApprovalStepName;
+  actionBy?: string;
+  actionByName?: string;
+  comment?: string;
+  timestamp: string;
+  eventType: 'step_approved' | 'step_rejected' | 'request_completed' | 'request_rejected';
 }
 
 /**
@@ -103,20 +130,28 @@ export interface CreateApprovalResponse {
   success: boolean;
   approvalId?: string;
   status?: ApprovalStatus;
-  message?: string;
+  currentStep?: ApprovalStepName;
   error?: string;
 }
 
 /**
- * Response for approval status query
+ * Response from getting approval status
  */
 export interface ApprovalStatusResponse {
   success: boolean;
   approval?: ApprovalRequest;
+  steps?: ApprovalStep[];
   error?: string;
 }
 
 /**
+ * Approver configuration
+ */
+export interface ApproverConfig {
+  role: ApprovalStepName;
+  email: string;
+  name: string;
+  department?: string;
  * Webhook payload from Budibase
  */
 export interface BudibaseWebhookPayload {
@@ -170,7 +205,7 @@ export function getNextStep(
   currentStep: ApprovalStepName,
   config: ApprovalWorkflowConfig = DEFAULT_WORKFLOW_CONFIG
 ): ApprovalStepName | null {
-  const steps = config[type].steps;
+  const steps = type === 'travel' ? config.travel.steps : config.invoice.steps;
   const currentIndex = steps.indexOf(currentStep);
   
   if (currentIndex === -1 || currentIndex >= steps.length - 1) {
