@@ -45,6 +45,8 @@ export class LangChainAgentService {
     this.hf = new HfInference(hfToken);
     this.tools = new AgentToolsService();
     this.outputMode = new OutputModeService();
+    // Share the HfInference instance with OutputModeService for coder model form design
+    this.outputMode.setHfInference(this.hf);
     this.sessionService = new SessionService();
   }
 
