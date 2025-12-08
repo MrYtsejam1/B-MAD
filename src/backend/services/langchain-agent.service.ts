@@ -933,12 +933,14 @@ Return ONLY the JSON object, no other text:`;
       }
     }
 
-    // Handle web component mode - inject data into component metadata
+    // Handle web component mode - inject data into component.data
+    // This is what the frontend reads to populate form fields
     const component = output.component as Record<string, unknown> | undefined;
     if (component) {
       // Normalize the data for web component as well
       const normalizedData = this.normalizeDataForMcpSchema(data);
-      component.formData = normalizedData;
+      component.data = normalizedData;
+      console.log('[LangChainAgent] Injected data into web component:', Object.keys(normalizedData).filter(k => normalizedData[k]));
     }
 
     console.log('[LangChainAgent] Applied defaults to form output:', {
