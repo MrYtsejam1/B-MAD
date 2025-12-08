@@ -573,74 +573,34 @@ class AgentUI {
 
         try {
             agentResult.innerHTML = `
-                <div class="success">✅ Web component generated successfully!</div>
+                <div class="success">Web component generated successfully!</div>
                 <div id="componentContainer" style="margin-top: 20px;"></div>
             `;
 
-            const selector = componentData.selector || 'generated-form-component';
-            
-            if (componentData.javascriptUrl) {
-                const script = document.createElement('script');
-                script.src = componentData.javascriptUrl;
-                script.async = false;
-                
-                await new Promise((resolve, reject) => {
-                    const timeout = setTimeout(() => {
-                        reject(new Error('Component loading timeout'));
-                    }, 5000);
-                    
-                    script.onload = async () => {
-                        try {
-                            await customElements.whenDefined(selector);
-                            clearTimeout(timeout);
-                            resolve();
-                        } catch (err) {
-                            clearTimeout(timeout);
-                            reject(err);
-                        }
-                    };
-                    
-                    script.onerror = () => {
-                        clearTimeout(timeout);
-                        reject(new Error('Failed to load component script'));
-                    };
-                    
-                    document.body.appendChild(script);
-                });
-            } else if (componentData.javascript) {
-                console.log('[AgentUI] Injecting inline component script, selector:', selector);
-                const script = document.createElement('script');
-                script.textContent = componentData.javascript;
-                document.body.appendChild(script);
-                
-                // Add timeout for inline scripts too
-                await new Promise((resolve, reject) => {
-                    const timeout = setTimeout(() => {
-                        reject(new Error('Component registration timeout - the script may have failed to execute due to CSP or syntax error'));
-                    }, 5000);
-                    
-                    customElements.whenDefined(selector).then(() => {
-                        clearTimeout(timeout);
-                        console.log('[AgentUI] Custom element defined:', selector);
-                        resolve();
-                    }).catch(err => {
-                        clearTimeout(timeout);
-                        reject(err);
-                    });
-                });
-            }
-
+            const selector = 'generated-form-component';
             const container = document.getElementById('componentContainer');
+            
+            // Wait for the static component to be defined (loaded from form-component.js)
+            await customElements.whenDefined(selector);
+            
+            // Create the component and configure it with data
             const component = document.createElement(selector);
+            
+            // Set the config with fields and data from the backend
+            component.config = {
+                fields: componentData.fields || [],
+                data: componentData.data || {},
+                styles: componentData.styles || {}
+            };
             
             component.addEventListener('formSubmit', (e) => {
                 console.log('Form submitted from web component:', e.detail);
-                this.addLogEntry('system', '📝 Form submitted: ' + JSON.stringify(e.detail, null, 2));
+                this.addLogEntry('system', 'Form submitted: ' + JSON.stringify(e.detail, null, 2));
             });
 
             container.appendChild(component);
             
-            this.addLogEntry('system', '✅ Web component loaded and mounted');
+            this.addLogEntry('system', 'Web component loaded and mounted');
         } catch (error) {
             console.error('Failed to load web component:', error);
             this.addLogEntry('error', 'Failed to load web component: ' + error.message + '. Showing fallback form.');
