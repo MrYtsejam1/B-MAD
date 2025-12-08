@@ -365,6 +365,30 @@ class GeneratedFormComponent extends HTMLElement {
         textarea.style.boxSizing = 'border-box';
         textarea.style.fontFamily = 'Arial, sans-serif';
         fieldDiv.appendChild(textarea);
+      } else if (fieldType === 'select') {
+        const select = document.createElement('select');
+        select.id = fieldName;
+        select.name = fieldName;
+        select.required = fieldRequired;
+        
+        // Add placeholder option
+        const placeholderOpt = document.createElement('option');
+        placeholderOpt.value = '';
+        placeholderOpt.textContent = fieldPlaceholder || 'Select...';
+        placeholderOpt.disabled = true;
+        placeholderOpt.selected = true;
+        select.appendChild(placeholderOpt);
+        
+        // Add options from field definition
+        const fieldOptions = typeof field === 'object' && field.options ? field.options : [];
+        fieldOptions.forEach(opt => {
+          const option = document.createElement('option');
+          option.value = opt.value || opt;
+          option.textContent = opt.label || opt.value || opt;
+          select.appendChild(option);
+        });
+        
+        fieldDiv.appendChild(select);
       } else {
         const input = document.createElement('input');
         input.type = fieldType;

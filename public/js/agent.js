@@ -608,11 +608,26 @@ class AgentUI {
                     document.body.appendChild(script);
                 });
             } else if (componentData.javascript) {
+                console.log('[AgentUI] Injecting inline component script, selector:', selector);
                 const script = document.createElement('script');
                 script.textContent = componentData.javascript;
                 document.body.appendChild(script);
                 
-                await customElements.whenDefined(selector);
+                // Add timeout for inline scripts too
+                await new Promise((resolve, reject) => {
+                    const timeout = setTimeout(() => {
+                        reject(new Error('Component registration timeout - the script may have failed to execute due to CSP or syntax error'));
+                    }, 5000);
+                    
+                    customElements.whenDefined(selector).then(() => {
+                        clearTimeout(timeout);
+                        console.log('[AgentUI] Custom element defined:', selector);
+                        resolve();
+                    }).catch(err => {
+                        clearTimeout(timeout);
+                        reject(err);
+                    });
+                });
             }
 
             const container = document.getElementById('componentContainer');
@@ -628,15 +643,93 @@ class AgentUI {
             this.addLogEntry('system', '✅ Web component loaded and mounted');
         } catch (error) {
             console.error('Failed to load web component:', error);
-            this.addLogEntry('error', 'Failed to load web component: ' + error.message);
+            this.addLogEntry('error', 'Failed to load web component: ' + error.message + '. Showing fallback form.');
             
-            agentResult.innerHTML = `
-                <div class="error">❌ Failed to load web component: ${this.escapeHtml(error.message)}</div>
-                <div class="demo-section" style="margin-top: 20px;">
-                    <p>The component could not be loaded. This may be due to Content Security Policy restrictions.</p>
-                </div>
-            `;
+            // Fallback: render form data as regular HTML form
+            this.displayFallbackForm(componentData, agentResult, error.message);
         }
+    }
+
+    displayFallbackForm(componentData, container, errorMessage) {
+        const fields = componentData.fields || [];
+        const data = componentData.data || {};
+        
+        let fieldsHtml = fields.map(field => {
+            const fieldName = typeof field === 'string' ? field : field.name;
+            const fieldLabel = typeof field === 'string' ? this.formatFieldName(field) : (field.label || this.formatFieldName(field.name));
+            const fieldType = typeof field === 'string' ? 'text' : (field.type || 'text');
+            const fieldValue = data[fieldName] || '';
+            const fieldRequired = typeof field === 'string' ? false : (field.required || false);
+            
+            if (fieldType === 'select') {
+                const options = (typeof field === 'object' && field.options) ? field.options : [];
+                const optionsHtml = options.map(opt => {
+                    const optValue = opt.value || opt;
+                    const optLabel = opt.label || opt.value || opt;
+                    const selected = optValue === fieldValue ? 'selected' : '';
+                    return `<option value="${this.escapeHtml(optValue)}" ${selected}>${this.escapeHtml(optLabel)}</option>`;
+                }).join('');
+                return `
+                    <div class="form-field">
+                        <label for="${fieldName}">${this.escapeHtml(fieldLabel)}${fieldRequired ? ' *' : ''}</label>
+                        <select id="${fieldName}" name="${fieldName}" ${fieldRequired ? 'required' : ''}>
+                            <option value="" disabled ${!fieldValue ? 'selected' : ''}>Select...</option>
+                            ${optionsHtml}
+                        </select>
+                    </div>
+                `;
+            } else if (fieldType === 'textarea') {
+                return `
+                    <div class="form-field">
+                        <label for="${fieldName}">${this.escapeHtml(fieldLabel)}${fieldRequired ? ' *' : ''}</label>
+                        <textarea id="${fieldName}" name="${fieldName}" rows="4" ${fieldRequired ? 'required' : ''}>${this.escapeHtml(fieldValue)}</textarea>
+                    </div>
+                `;
+            } else {
+                return `
+                    <div class="form-field">
+                        <label for="${fieldName}">${this.escapeHtml(fieldLabel)}${fieldRequired ? ' *' : ''}</label>
+                        <input type="${fieldType}" id="${fieldName}" name="${fieldName}" value="${this.escapeHtml(fieldValue)}" ${fieldRequired ? 'required' : ''}>
+                    </div>
+                `;
+            }
+        }).join('');
+        
+        container.innerHTML = `
+            <div class="warning" style="background: #fff3cd; border: 1px solid #ffc107; padding: 10px; border-radius: 4px; margin-bottom: 15px;">
+                <strong>Note:</strong> Web component failed to load (${this.escapeHtml(errorMessage)}). Showing standard form instead.
+            </div>
+            <div class="demo-section">
+                <h3>Generated Form</h3>
+                <form id="fallbackForm" class="generated-form">
+                    ${fieldsHtml}
+                    <button type="submit" class="submit-btn">Submit</button>
+                </form>
+            </div>
+        `;
+        
+        // Add submit handler
+        const form = container.querySelector('#fallbackForm');
+        if (form) {
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const formData = new FormData(form);
+                const formDataObj = {};
+                formData.forEach((value, key) => {
+                    formDataObj[key] = value;
+                });
+                console.log('Fallback form submitted:', formDataObj);
+                this.addLogEntry('system', 'Form submitted: ' + JSON.stringify(formDataObj, null, 2));
+            });
+        }
+    }
+
+    formatFieldName(field) {
+        return field
+            .replace(/([A-Z])/g, ' $1')
+            .replace(/^./, str => str.toUpperCase())
+            .trim();
+    }
     }
 
     escapeHtml(text) {
