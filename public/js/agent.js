@@ -730,7 +730,6 @@ class AgentUI {
             .replace(/^./, str => str.toUpperCase())
             .trim();
     }
-    }
 
     escapeHtml(text) {
         const div = document.createElement('div');
