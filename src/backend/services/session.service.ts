@@ -34,6 +34,7 @@ export class SessionService {
     const session: AgentSession = {
       id: sessionId,
       mode: request.mode || 'chat',
+      model: request.model,
       intent,
       mcpServerId: this.getMcpServerId(intent),
       requiredFields: [],

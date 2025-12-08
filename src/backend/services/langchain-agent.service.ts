@@ -715,7 +715,7 @@ Return ONLY the JSON object, no other text:`;
 
     if (complexity === ComplexityLevel.SIMPLE && this.sessionService.isSessionComplete(updatedSession)) {
       this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
-      const rawFormOutput = await this.generateOutput(request.userInput, intent, complexity);
+      const rawFormOutput = await this.generateOutput(request.userInput, intent, complexity, updatedSession.model);
       const combinedData = this.sessionService.getCombinedData(updatedSession);
       const formOutput = this.applyDefaultsToFormOutput(rawFormOutput, combinedData);
       this.emitEvent(eventCallback, 'complete', formOutput);
@@ -742,7 +742,7 @@ Return ONLY the JSON object, no other text:`;
     }
 
     this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
-    const rawFormOutput = await this.generateOutput(request.userInput, intent, complexity);
+    const rawFormOutput = await this.generateOutput(request.userInput, intent, complexity, updatedSession.model);
     const combinedData = this.sessionService.getCombinedData(updatedSession);
     const formOutput = this.applyDefaultsToFormOutput(rawFormOutput, combinedData);
     this.emitEvent(eventCallback, 'complete', formOutput);
@@ -820,7 +820,7 @@ Return ONLY the JSON object, no other text:`;
       this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
       
       const userInput = this.buildUserInputFromSession(updatedSession);
-      const rawFormOutput = await this.generateOutput(userInput, updatedSession.intent, updatedSession.complexity);
+      const rawFormOutput = await this.generateOutput(userInput, updatedSession.intent, updatedSession.complexity, updatedSession.model);
       const combinedData = this.sessionService.getCombinedData(updatedSession);
       const formOutput = this.applyDefaultsToFormOutput(rawFormOutput, combinedData);
       
@@ -849,7 +849,7 @@ Return ONLY the JSON object, no other text:`;
 
     this.emitEvent(eventCallback, 'generating', { message: 'Generating form...' });
     const userInput = this.buildUserInputFromSession(updatedSession);
-    const rawFormOutput = await this.generateOutput(userInput, updatedSession.intent, updatedSession.complexity);
+    const rawFormOutput = await this.generateOutput(userInput, updatedSession.intent, updatedSession.complexity, updatedSession.model);
     const combinedData = this.sessionService.getCombinedData(updatedSession);
     const formOutput = this.applyDefaultsToFormOutput(rawFormOutput, combinedData);
     this.emitEvent(eventCallback, 'complete', formOutput);

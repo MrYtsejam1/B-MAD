@@ -3,6 +3,7 @@ import { IntentType, ComplexityLevel } from './agent.model';
 export interface AgentSession {
   id: string;
   mode: 'chat' | 'wizard';
+  model?: string;
   intent: IntentType;
   mcpServerId: string | null;
   requiredFields: string[];
